@@ -1,0 +1,41 @@
+[package]
+name = "zernia-image"
+version = "0.1.0"
+description = "A fast, private desktop image library"
+authors = ["zernia image contributors"]
+edition = "2021"
+
+[lib]
+name = "zernia_image_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+image = { version = "0.25", features = ["jpeg", "png", "gif", "webp", "tiff", "bmp", "ico", "avif", "qoi"] }
+kamadak-exif = "0.6"
+blake3 = "1"
+directories = "6"
+mime_guess = "2"
+walkdir = "2"
+rayon = "1"
+parking_lot = "0.12"
+log = "0.4"
+natord = "1"
+trash = "5"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+panic = "abort"

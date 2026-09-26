@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "zernia image",
+  "version": "0.1.0",
+  "identifier": "com.zernia.image",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "zernia image", "width": 1280, "height": 800, "minWidth": 760, "minHeight": 520, "center": true, "decorations": true, "transparent": false, "resizable": true }],
+    "security": {
+      "csp": "default-src 'self' customprotocol: asset:; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost",
+      "assetProtocol": { "enable": true, "scope": ["**"] }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": ["nsis", "msi"],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "category": "Photography",
+    "shortDescription": "빠르고 아름다운 데스크톱 사진 라이브러리",
+    "longDescription": "대용량 폴더, 가상화된 갤러리, 디스크 썸네일 캐시와 상세 이미지 메타데이터를 지원하는 Windows 우선 사진 관리 프로그램입니다.",
+    "copyright": "Copyright © 2026 zernia image",
+    "fileAssociations": [{ "ext": ["jpg", "jpeg", "jfif", "png", "webp", "gif", "bmp", "tif", "tiff", "avif", "heic", "heif", "jxl", "ico", "qoi"], "description": "Image file", "role": "Viewer" }]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0MzQwODk3Nzg0OEUxNjUKUldSbDRVaDRsd2cwbEVEMnZlZjJGNlkyb2d0SGxITjdsQXgzMFEydmR4S0NZc0RGbG9CaFNNZFYK",
+      "endpoints": ["https://github.com/Zernia01/Z_image/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}
