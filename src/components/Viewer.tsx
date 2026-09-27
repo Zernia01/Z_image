@@ -40,7 +40,11 @@ export function Viewer() {
   const move = (delta: number) => {
     const currentImages = images.current;
     const currentIndex = currentImages.findIndex(image => image.id === activeId.current);
-    const nextIndex = Math.max(0, Math.min(currentImages.length - 1, currentIndex + delta));
+    if (currentIndex < 0 || currentImages.length < 2) return;
+    const requestedIndex = currentIndex + delta;
+    const nextIndex = useAppStore.getState().settings.loopNavigation
+      ? (requestedIndex + currentImages.length) % currentImages.length
+      : Math.max(0, Math.min(currentImages.length - 1, requestedIndex));
     const next = currentImages[nextIndex];
     if (!next || next.id === activeId.current) return;
     activeId.current = next.id;
@@ -105,7 +109,11 @@ export function Viewer() {
     const lastOffset = wheelDirection.current < 0 ? behindRadius : aheadRadius;
     const wanted = new Set<string>();
     for (let offset = firstOffset; offset <= lastOffset; offset++) {
-      const image = s.images[index + offset];
+      const requestedIndex = index + offset;
+      const preloadIndex = s.settings.loopNavigation && s.images.length > 1
+        ? ((requestedIndex % s.images.length) + s.images.length) % s.images.length
+        : requestedIndex;
+      const image = s.images[preloadIndex];
       if (!image || image.id === active.id) continue;
       wanted.add(image.path);
       if (preloadCache.current.has(image.path)) continue;
@@ -117,7 +125,7 @@ export function Viewer() {
       if (Math.abs(offset) === 1) void loader.decode?.().catch(() => undefined);
     }
     for (const path of preloadCache.current.keys()) if (!wanted.has(path)) preloadCache.current.delete(path);
-  }, [active.id, index, s.images, s.settings.preload]);
+  }, [active.id, index, s.images, s.settings.loopNavigation, s.settings.preload]);
   useEffect(() => {
     if (zoom <= 1 && (pan.x !== 0 || pan.y !== 0)) setPan({ x: 0, y: 0 });
   }, [zoom, pan.x, pan.y]);
@@ -217,9 +225,9 @@ export function Viewer() {
           });
         }} style={{ transform: imageTransform }}/>
       </div>
-      {!immersive && <><button className="viewer-nav left" onClick={() => move(-1)} disabled={index <= 0}><ArrowLeft/></button><button className="viewer-nav right" onClick={() => move(1)} disabled={index >= s.images.length - 1}><ArrowRight/></button></>}
-      {immersive && index > 0 && <button className="immersive-edge previous" aria-label="이전 사진" onClick={() => move(-1)}><ArrowLeft/></button>}
-      {immersive && index < s.images.length - 1 && <button className="immersive-edge next" aria-label="다음 사진" onClick={() => move(1)}><ArrowRight/></button>}
+      {!immersive && <><button className="viewer-nav left" onClick={() => move(-1)} disabled={s.images.length < 2 || (!s.settings.loopNavigation && index <= 0)}><ArrowLeft/></button><button className="viewer-nav right" onClick={() => move(1)} disabled={s.images.length < 2 || (!s.settings.loopNavigation && index >= s.images.length - 1)}><ArrowRight/></button></>}
+      {immersive && s.images.length > 1 && (s.settings.loopNavigation || index > 0) && <button className="immersive-edge previous" aria-label="이전 사진" onClick={() => move(-1)}><ArrowLeft/></button>}
+      {immersive && s.images.length > 1 && (s.settings.loopNavigation || index < s.images.length - 1) && <button className="immersive-edge next" aria-label="다음 사진" onClick={() => move(1)}><ArrowRight/></button>}
     </div>
     {!immersive && <div className="viewer-controls"><button className="viewer-mode-button" title="사진만 보기 (F11)" onClick={() => void enterImmersive()}><Fullscreen/><span>사진만 보기</span></button><IconButton label="화면 맞춤" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Maximize/></IconButton><IconButton label="축소" onClick={() => setZoom(z => Math.max(.05, z / 1.2))}><Minus/></IconButton><button className="zoom-label" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button><IconButton label="확대" onClick={() => setZoom(z => Math.min(32, z * 1.2))}><Plus/></IconButton><span/><IconButton label="회전" onClick={() => setRotation(v => v + 90)}><RotateCw/></IconButton><IconButton label="좌우 반전" onClick={() => setFlip(v => !v)}><FlipHorizontal2/></IconButton></div>}
     {immersive && (immersiveControlVisible || infoVisible) && <button className={`immersive-info-toggle ${infoVisible ? "active" : ""} ${topBarVisible ? "below-titlebar" : ""}`} aria-label="사진 정보" title="사진 정보" onClick={() => { const next = !infoVisible; setInfoVisible(next); s.updateSettings({ showImmersiveInfo: next }); }}><Info/></button>}
