@@ -15,7 +15,8 @@ GitHub 저장소 `Zernia01/Z_image`의 Actions secrets에 다음 값을 추가�
 
 1. `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`의 버전을 같은 새 SemVer로 변경합니다.
 2. 변경 사항을 GitHub에 푸시합니다.
-3. 같은 버전으로 태그를 만들고 푸시합니다. 예: `v0.2.0`.
-4. `.github/workflows/release.yml`이 Windows 설치기, 서명 파일, `latest.json`을 GitHub Release에 게시합니다.
+3. GitHub의 `Actions` → `Release zernia image` → `Run workflow`를 실행합니다. 워크플로가 앱 버전을 읽어 `v0.2.0` 형태의 태그를 자동으로 만듭니다.
+4. 또는 같은 버전의 `v` 접두사 태그를 직접 푸시해도 됩니다. 예: `v0.2.0`. `0.2.0`처럼 `v`가 없는 태그는 사용하지 않습니다.
+5. `.github/workflows/release.yml`이 Windows 설치기, 서명 파일, `latest.json`을 GitHub Release에 게시합니다.
 
 설치된 앱은 시작할 때 `https://github.com/Zernia01/Z_image/releases/latest/download/latest.json`을 확인합니다.
