@@ -28,6 +28,11 @@ export async function thumbnailUrl(path: string, size: number): Promise<string> 
   return convertFileSrc(cached);
 }
 
+export async function cachedThumbnailUrl(path: string, size: number): Promise<string | null> {
+  const cached = await invoke<string | null>("get_cached_thumbnail", { path, size });
+  return cached ? convertFileSrc(cached) : null;
+}
+
 export function originalUrl(path: string): string {
   return convertFileSrc(path);
 }

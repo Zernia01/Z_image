@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, FlipHorizontal2, Fullscreen, Info, Maximize, Minimize2, Minus, Plus, RotateCw, Square, X } from "lucide-react";
-import { loadMetadata, originalUrl } from "../services/backend";
+import { cachedThumbnailUrl, loadMetadata, originalUrl } from "../services/backend";
 import { useAppStore } from "../stores/useAppStore";
 import type { ImageMetadata } from "../types/image";
 import { IconButton } from "./IconButton";
@@ -20,14 +20,33 @@ export function Viewer() {
   const [topBarVisible, setTopBarVisible] = useState(false);
   const [topBarClosing, setTopBarClosing] = useState(false);
   const [metadata, setMetadata] = useState<ImageMetadata | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [readyImagePath, setReadyImagePath] = useState<string | null>(null);
   const hideControlTimer = useRef<ReturnType<typeof setTimeout>>();
   const hideTopBarTimer = useRef<ReturnType<typeof setTimeout>>();
-  const lastWheelMove = useRef(0);
+  const navigationWheelDelta = useRef(0);
+  const navigationWheelFrame = useRef<number>();
+  const wheelDirection = useRef(0);
+  const zoomWheelDelta = useRef(0);
+  const zoomWheelFrame = useRef<number>();
   const imageRef = useRef<HTMLImageElement>(null);
   const preloadCache = useRef(new Map<string, HTMLImageElement>());
   const panDrag = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const index = s.images.findIndex(x => x.id === active.id);
-  const move = (delta: number) => { const next = s.images[index + delta]; if (next) { s.openImage(next); setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); setFlip(false); } };
+  const activeId = useRef(active.id);
+  const images = useRef(s.images);
+  activeId.current = active.id;
+  images.current = s.images;
+  const move = (delta: number) => {
+    const currentImages = images.current;
+    const currentIndex = currentImages.findIndex(image => image.id === activeId.current);
+    const nextIndex = Math.max(0, Math.min(currentImages.length - 1, currentIndex + delta));
+    const next = currentImages[nextIndex];
+    if (!next || next.id === activeId.current) return;
+    activeId.current = next.id;
+    useAppStore.getState().openImage(next);
+    setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); setFlip(false);
+  };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
     try { await getCurrentWindow().setDecorations(false); } catch (error) { console.error("창 제목 표시줄을 숨길 수 없습니다.", error); }
@@ -53,28 +72,49 @@ export function Viewer() {
   useEffect(() => {
     void getCurrentWindow().center().catch(error => console.error("뷰어 창을 화면 중앙으로 이동할 수 없습니다.", error));
     if (s.settings.openImagesImmersive) void getCurrentWindow().setDecorations(false).catch(() => undefined);
-    return () => { if (hideControlTimer.current) clearTimeout(hideControlTimer.current); if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current); void getCurrentWindow().setDecorations(true).catch(() => undefined); };
+    return () => {
+      if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
+      if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
+      if (navigationWheelFrame.current !== undefined) cancelAnimationFrame(navigationWheelFrame.current);
+      if (zoomWheelFrame.current !== undefined) cancelAnimationFrame(zoomWheelFrame.current);
+      void getCurrentWindow().setDecorations(true).catch(() => undefined);
+    };
   }, []);
   useEffect(() => {
     if (!infoVisible) { setMetadata(null); return; }
     let live = true;
     setMetadata(null);
-    loadMetadata(active.path).then(value => live && setMetadata(value)).catch(() => live && setMetadata(null));
-    return () => { live = false; };
+    const timer = window.setTimeout(() => {
+      loadMetadata(active.path).then(value => live && setMetadata(value)).catch(() => live && setMetadata(null));
+    }, 140);
+    return () => { live = false; window.clearTimeout(timer); };
   }, [active.path, infoVisible]);
   useEffect(() => {
-    const radius = Math.max(1, Math.min(5, s.settings.preload));
+    let live = true;
+    setPreviewUrl(null);
+    setReadyImagePath(null);
+    const previewSize = Math.min(512, Math.max(128, s.settings.thumbnailSize * 2));
+    cachedThumbnailUrl(active.path, previewSize).then(url => { if (live) setPreviewUrl(url); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [active.path, s.settings.thumbnailSize]);
+  useEffect(() => {
+    const configuredRadius = Math.max(1, Math.min(5, s.settings.preload));
+    const aheadRadius = configuredRadius;
+    const behindRadius = Math.min(2, configuredRadius);
+    const firstOffset = wheelDirection.current > 0 ? -behindRadius : -aheadRadius;
+    const lastOffset = wheelDirection.current < 0 ? behindRadius : aheadRadius;
     const wanted = new Set<string>();
-    for (let offset = -radius; offset <= radius; offset++) {
+    for (let offset = firstOffset; offset <= lastOffset; offset++) {
       const image = s.images[index + offset];
       if (!image || image.id === active.id) continue;
       wanted.add(image.path);
       if (preloadCache.current.has(image.path)) continue;
       const loader = new Image();
       loader.decoding = "async";
+      loader.fetchPriority = Math.abs(offset) <= 2 ? "high" : "low";
       loader.src = originalUrl(image.path);
       preloadCache.current.set(image.path, loader);
-      void loader.decode?.().catch(() => undefined);
+      if (Math.abs(offset) === 1) void loader.decode?.().catch(() => undefined);
     }
     for (const path of preloadCache.current.keys()) if (!wanted.has(path)) preloadCache.current.delete(path);
   }, [active.id, index, s.images, s.settings.preload]);
@@ -88,16 +128,43 @@ export function Viewer() {
     hideControlTimer.current = setTimeout(() => setImmersiveControlVisible(false), 1400);
   };
   const modifiedAt = metadata?.modifiedAt ?? active.modifiedAt;
+  const imageTransform = `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotate(${rotation}deg) scaleX(${flip ? -1 : 1})`;
   const handleWheel = (event: React.WheelEvent) => {
     event.preventDefault();
+    const pixelDelta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1);
     if (event.ctrlKey) {
-      setZoom(value => Math.max(.05, Math.min(32, value * (event.deltaY < 0 ? 1.12 : .89))));
+      zoomWheelDelta.current += pixelDelta;
+      if (zoomWheelFrame.current === undefined) {
+        zoomWheelFrame.current = requestAnimationFrame(() => {
+          const delta = zoomWheelDelta.current;
+          zoomWheelDelta.current = 0;
+          zoomWheelFrame.current = undefined;
+          setZoom(value => Math.max(.05, Math.min(32, value * Math.exp(-delta * .0022))));
+        });
+      }
       return;
     }
-    const now = performance.now();
-    if (now - lastWheelMove.current < 220 || Math.abs(event.deltaY) < 2) return;
-    lastWheelMove.current = now;
-    move(event.deltaY > 0 ? 1 : -1);
+    if (Math.abs(pixelDelta) >= 50) {
+      navigationWheelDelta.current = 0;
+      if (navigationWheelFrame.current !== undefined) {
+        cancelAnimationFrame(navigationWheelFrame.current);
+        navigationWheelFrame.current = undefined;
+      }
+      wheelDirection.current = pixelDelta > 0 ? 1 : -1;
+      move(pixelDelta > 0 ? 1 : -1);
+      return;
+    }
+    navigationWheelDelta.current += pixelDelta;
+    wheelDirection.current = pixelDelta > 0 ? 1 : -1;
+    if (navigationWheelFrame.current !== undefined) return;
+    const flushNavigation = () => {
+      const delta = navigationWheelDelta.current;
+      navigationWheelFrame.current = undefined;
+      if (Math.abs(delta) < 24) return;
+      navigationWheelDelta.current = 0;
+      move(delta > 0 ? 1 : -1);
+    };
+    navigationWheelFrame.current = requestAnimationFrame(flushNavigation);
   };
   const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
     if (zoom <= 1 || event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
@@ -141,7 +208,15 @@ export function Viewer() {
     </div>}
     {!immersive && <div className="viewer-top"><div><strong>{active.filename}</strong><span>{index + 1} / {s.images.length}</span></div><IconButton label="뷰어 닫기" onClick={() => s.set({ active: null })}><X/></IconButton></div>}
     <div className={`viewer-canvas ${zoom > 1 ? "pannable" : ""}`} onWheel={handleWheel} onPointerDown={startPan} onPointerMove={updatePan} onPointerUp={stopPan} onPointerCancel={stopPan}>
-      <div className="viewer-image-center"><img ref={imageRef} src={originalUrl(active.path)} alt={active.filename} draggable={false} style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotate(${rotation}deg) scaleX(${flip ? -1 : 1})` }}/></div>
+      <div className="viewer-image-center">
+        {previewUrl && readyImagePath !== active.path && <img className="viewer-preview-image" src={previewUrl} alt="" draggable={false} style={{ transform: imageTransform }}/>} 
+        <img key={active.id} ref={imageRef} className={`viewer-original-image ${readyImagePath === active.path ? "ready" : ""}`} data-image-path={active.path} src={originalUrl(active.path)} alt={active.filename} draggable={false} decoding="async" loading="eager" onLoad={event => {
+          const element = event.currentTarget;
+          void element.decode().catch(() => undefined).then(() => {
+            if (element.dataset.imagePath === useAppStore.getState().active?.path) setReadyImagePath(element.dataset.imagePath ?? null);
+          });
+        }} style={{ transform: imageTransform }}/>
+      </div>
       {!immersive && <><button className="viewer-nav left" onClick={() => move(-1)} disabled={index <= 0}><ArrowLeft/></button><button className="viewer-nav right" onClick={() => move(1)} disabled={index >= s.images.length - 1}><ArrowRight/></button></>}
       {immersive && index > 0 && <button className="immersive-edge previous" aria-label="이전 사진" onClick={() => move(-1)}><ArrowLeft/></button>}
       {immersive && index < s.images.length - 1 && <button className="immersive-edge next" aria-label="다음 사진" onClick={() => move(1)}><ArrowRight/></button>}

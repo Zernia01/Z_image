@@ -42,6 +42,7 @@ const savedSettings: AppSettings = { ...defaultSettings, ...loadJson<Partial<App
 const recentFolders = loadJson<string[]>("zernia.recentFolders", []);
 const recentImages = loadJson<ImageEntry[]>("zernia.recentImages", []);
 const favoriteImages = loadJson<ImageEntry[]>("zernia.favoriteImages", []);
+let recentImageTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const useAppStore = create<AppState>((set, get) => ({
   folder: null, libraryView: "home", images: [], selected: new Set(), active: null, metadata: null,
@@ -53,6 +54,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const settings = { ...get().settings, ...patch };
     localStorage.setItem("zernia.settings", JSON.stringify(settings));
     if (patch.rememberRecent === false) {
+      if (recentImageTimer) clearTimeout(recentImageTimer);
       localStorage.removeItem("zernia.recentFolders");
       localStorage.removeItem("zernia.recentImages");
       set({ settings, recentFolders: [], recentImages: [], images: get().libraryView === "recent" ? [] : get().images, selected: get().libraryView === "recent" ? new Set() : get().selected });
@@ -62,13 +64,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ settings });
   },
   openImage: (image) => {
+    set({ active: image, selected: new Set([image.id]) });
     if (!get().settings.rememberRecent) {
-      set({ active: image, selected: new Set([image.id]) });
       return;
     }
-    const recent = [image, ...get().recentImages.filter(item => item.path !== image.path)].slice(0, 100);
-    set({ active: image, selected: new Set([image.id]), recentImages: recent });
-    window.setTimeout(() => localStorage.setItem("zernia.recentImages", JSON.stringify(recent)), 0);
+    if (recentImageTimer) clearTimeout(recentImageTimer);
+    recentImageTimer = window.setTimeout(() => {
+      const current = get().active;
+      if (!current || !get().settings.rememberRecent) return;
+      const recent = [current, ...get().recentImages.filter(item => item.path !== current.path)].slice(0, 100);
+      set({ recentImages: recent });
+      localStorage.setItem("zernia.recentImages", JSON.stringify(recent));
+      recentImageTimer = undefined;
+    }, 180);
   },
   toggleFavorite: (image) => {
     const current = get().favoriteImages;

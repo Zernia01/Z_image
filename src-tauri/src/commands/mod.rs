@@ -4,6 +4,8 @@ pub async fn scan_folder(path: String, generation: u64) -> Result<Vec<ImageEntry
 #[tauri::command]
 pub async fn get_thumbnail(path: String, size: u32) -> Result<String, String> { tauri::async_runtime::spawn_blocking(move || thumbnail::create(&path, size.clamp(64, 1024))).await.map_err(|e| e.to_string())? }
 #[tauri::command]
+pub async fn get_cached_thumbnail(path: String, size: u32) -> Result<Option<String>, String> { tauri::async_runtime::spawn_blocking(move || thumbnail::lookup(&path, size.clamp(64, 1024))).await.map_err(|e| e.to_string())? }
+#[tauri::command]
 pub async fn read_metadata(path: String) -> Result<ImageMetadata, String> { tauri::async_runtime::spawn_blocking(move || metadata::read(&path)).await.map_err(|e| e.to_string())? }
 #[tauri::command]
 pub async fn cache_stats() -> Result<CacheStats, String> { cache::stats() }

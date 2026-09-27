@@ -13,6 +13,6 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![commands::scan_folder, commands::get_thumbnail, commands::read_metadata, commands::cache_stats, commands::clear_thumbnail_cache, commands::move_files, commands::move_files_to_trash, commands::resolve_dropped_paths, commands::open_default_apps_settings, commands::get_launch_paths])
+        .invoke_handler(tauri::generate_handler![commands::scan_folder, commands::get_thumbnail, commands::get_cached_thumbnail, commands::read_metadata, commands::cache_stats, commands::clear_thumbnail_cache, commands::move_files, commands::move_files_to_trash, commands::resolve_dropped_paths, commands::open_default_apps_settings, commands::get_launch_paths])
         .run(tauri::generate_context!()).expect("failed to run zernia image");
 }
