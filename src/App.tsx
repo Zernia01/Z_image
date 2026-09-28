@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { FolderOpen, Image as ImageIcon, ShieldCheck, Zap } from "lucide-react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { listen } from "@tauri-apps/api/event";
 import { Sidebar } from "./components/Sidebar";
 import { Toolbar } from "./components/Toolbar";
 import { Gallery } from "./components/Gallery";
@@ -77,6 +78,13 @@ export default function App() {
       const lastFolder = state.settings.rememberLastLocation ? localStorage.getItem("zernia.lastFolder") : null;
       if (lastFolder) await openFolder(lastFolder);
     })();
+  }, []);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    listen<string[]>("open-paths", event => { void openPaths(event.payload); }).then(stop => { if (disposed) stop(); else unlisten = stop; });
+    return () => { disposed = true; unlisten?.(); };
   }, []);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {

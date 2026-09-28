@@ -1,7 +1,7 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { DropResult, FileBatchResult, ImageEntry, ImageMetadata, MoveResult } from "../types/image";
+import type { AnimationInfo, DropResult, FileBatchResult, ImageEntry, ImageMetadata, MoveResult } from "../types/image";
 
 export async function chooseFolder(): Promise<string | null> {
   if (!isTauri()) return null;
@@ -35,6 +35,16 @@ export async function cachedThumbnailUrl(path: string, size: number): Promise<st
 
 export function originalUrl(path: string): string {
   return convertFileSrc(path);
+}
+
+export async function displayImageUrl(path: string): Promise<string> {
+  const prepared = await invoke<string>("get_display_image", { path });
+  return convertFileSrc(prepared);
+}
+
+export async function loadAnimation(path: string): Promise<AnimationInfo | null> {
+  const animation = await invoke<AnimationInfo | null>("decode_animation", { path });
+  return animation ? { ...animation, frames: animation.frames.map(frame => ({ ...frame, path: convertFileSrc(frame.path) })) } : null;
 }
 
 export async function cacheStats(): Promise<{ bytes: number; files: number }> {
