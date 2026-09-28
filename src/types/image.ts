@@ -53,3 +53,14 @@ export interface DropResult {
   images: ImageEntry[];
   activePath?: string;
 }
+
+export interface AnimationFrameInfo {
+  path: string;
+  delayMs: number;
+}
+
+export interface AnimationInfo {
+  format: string;
+  loopCount: number | null;
+  frames: AnimationFrameInfo[];
+}
