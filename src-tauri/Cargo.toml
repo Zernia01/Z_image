@@ -1,6 +1,6 @@
 [package]
 name = "zernia-image"
-version = "0.1.2"
+version = "0.1.4"
 description = "A fast, private desktop image library"
 authors = ["zernia image contributors"]
 edition = "2021"
@@ -18,10 +18,12 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
-image = { version = "0.25", features = ["jpeg", "png", "gif", "webp", "tiff", "bmp", "ico", "avif", "qoi"] }
+image = { version = "0.25", default-features = false, features = ["rayon", "jpeg", "png", "gif", "webp", "tiff", "bmp", "ico", "qoi"] }
+zenavif = "0.1.6"
 kamadak-exif = "0.6"
 blake3 = "1"
 directories = "6"

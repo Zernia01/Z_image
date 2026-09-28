@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, FlipHorizontal2, Fullscreen, Info, Maximize, Minimize2, Minus, Plus, RotateCw, Square, X } from "lucide-react";
-import { cachedThumbnailUrl, loadMetadata, originalUrl } from "../services/backend";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, FlipHorizontal2, Fullscreen, Info, Maximize, Minimize2, Minus, Pause, Play, Plus, RotateCw, SkipBack, SkipForward, Square, X } from "lucide-react";
+import { cachedThumbnailUrl, displayImageUrl, loadAnimation, loadMetadata, originalUrl } from "../services/backend";
 import { useAppStore } from "../stores/useAppStore";
-import type { ImageMetadata } from "../types/image";
+import type { AnimationInfo, ImageMetadata } from "../types/image";
 import { IconButton } from "./IconButton";
 import { formatBytes } from "./Thumbnail";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+
+const ZOOM_STEPS = [.1, .125, .25, .33, .5, .67, .75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 8, 10];
+const isEditableTarget = (target: EventTarget | null) => target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 
 export function Viewer() {
   const s = useAppStore();
@@ -21,7 +24,14 @@ export function Viewer() {
   const [topBarClosing, setTopBarClosing] = useState(false);
   const [metadata, setMetadata] = useState<ImageMetadata | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [displayUrl, setDisplayUrl] = useState(() => originalUrl(active.path));
   const [readyImagePath, setReadyImagePath] = useState<string | null>(null);
+  const [animation, setAnimation] = useState<AnimationInfo | null>(null);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [completedLoops, setCompletedLoops] = useState(0);
+  const [pendingFrame, setPendingFrame] = useState<number | null>(null);
+  const [frameInput, setFrameInput] = useState("1");
   const hideControlTimer = useRef<ReturnType<typeof setTimeout>>();
   const hideTopBarTimer = useRef<ReturnType<typeof setTimeout>>();
   const navigationWheelDelta = useRef(0);
@@ -51,6 +61,20 @@ export function Viewer() {
     useAppStore.getState().openImage(next);
     setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); setFlip(false);
   };
+  const stepZoom = (direction: 1 | -1) => setZoom(current => {
+    if (direction > 0) return ZOOM_STEPS.find(value => value > current + .001) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1];
+    return [...ZOOM_STEPS].reverse().find(value => value < current - .001) ?? ZOOM_STEPS[0];
+  });
+  const seekFrame = (requested: number) => {
+    if (!animation) return;
+    const next = Math.max(0, Math.min(animation.frames.length - 1, requested));
+    setPlaying(false); setCompletedLoops(0); setPendingFrame(null); setFrameIndex(next); setFrameInput(String(next + 1));
+  };
+  const togglePlayback = () => {
+    if (!animation) return;
+    setCompletedLoops(0);
+    setPlaying(value => !value);
+  };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
     try { await getCurrentWindow().setDecorations(false); } catch (error) { console.error("창 제목 표시줄을 숨길 수 없습니다.", error); }
@@ -63,12 +87,18 @@ export function Viewer() {
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
       if (e.key === "Escape") { if (immersive) void leaveImmersive(); else s.set({ active: null }); }
       if (e.key === "F11") { e.preventDefault(); if (immersive) void leaveImmersive(); else void enterImmersive(); }
-      if (e.key === "ArrowLeft") move(-1);
-      if (e.key === "ArrowRight") move(1);
-      if (e.key === "+" || e.key === "=") setZoom(z => Math.min(32, z * 1.2));
-      if (e.key === "-") setZoom(z => Math.max(.05, z / 1.2));
+      if (e.key === "ArrowLeft") { e.preventDefault(); animation ? seekFrame(frameIndex - 1) : move(-1); }
+      if (e.key === "ArrowRight") { e.preventDefault(); animation ? seekFrame(frameIndex + 1) : move(1); }
+      if (e.key === "Home" && animation) { e.preventDefault(); seekFrame(0); }
+      if (e.key === "End" && animation) { e.preventDefault(); seekFrame(animation.frames.length - 1); }
+      if (e.code === "Space" && animation) { e.preventDefault(); togglePlayback(); }
+      if (e.key === "PageUp") { e.preventDefault(); stepZoom(1); }
+      if (e.key === "PageDown") { e.preventDefault(); stepZoom(-1); }
+      if (e.key === "+" || e.key === "=") stepZoom(1);
+      if (e.key === "-") stepZoom(-1);
       if (e.key === "0") setZoom(1);
     };
     window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
@@ -85,6 +115,30 @@ export function Viewer() {
     };
   }, []);
   useEffect(() => {
+    let live = true;
+    setAnimation(null); setFrameIndex(0); setFrameInput("1"); setPlaying(false); setCompletedLoops(0); setPendingFrame(null);
+    loadAnimation(active.path).then(value => {
+      if (!live || !value || value.frames.length < 2) return;
+      setAnimation(value); setFrameIndex(0); setFrameInput("1"); setPlaying(true);
+    }).catch(error => console.error("애니메이션을 불러올 수 없습니다.", error));
+    return () => { live = false; };
+  }, [active.path]);
+  useEffect(() => {
+    if (!animation || !playing) return;
+    const delay = animation.frames[frameIndex]?.delayMs ?? 100;
+    const timer = window.setTimeout(() => {
+      setFrameIndex(current => {
+        if (current < animation.frames.length - 1) return current + 1;
+        const nextLoops = completedLoops + 1;
+        if (animation.loopCount !== null && nextLoops >= animation.loopCount) { setPlaying(false); return current; }
+        setCompletedLoops(nextLoops);
+        return 0;
+      });
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [animation, completedLoops, frameIndex, playing]);
+  useEffect(() => { setFrameInput(String(frameIndex + 1)); }, [frameIndex]);
+  useEffect(() => {
     if (!infoVisible) { setMetadata(null); return; }
     let live = true;
     setMetadata(null);
@@ -96,9 +150,11 @@ export function Viewer() {
   useEffect(() => {
     let live = true;
     setPreviewUrl(null);
+    setDisplayUrl(originalUrl(active.path));
     setReadyImagePath(null);
     const previewSize = Math.min(512, Math.max(128, s.settings.thumbnailSize * 2));
     cachedThumbnailUrl(active.path, previewSize).then(url => { if (live) setPreviewUrl(url); }).catch(() => undefined);
+    displayImageUrl(active.path).then(url => { if (live) setDisplayUrl(url); }).catch(error => console.error("표시용 이미지를 준비할 수 없습니다.", error));
     return () => { live = false; };
   }, [active.path, s.settings.thumbnailSize]);
   useEffect(() => {
@@ -136,6 +192,7 @@ export function Viewer() {
     hideControlTimer.current = setTimeout(() => setImmersiveControlVisible(false), 1400);
   };
   const modifiedAt = metadata?.modifiedAt ?? active.modifiedAt;
+  const displayedImageUrl = animation?.frames[frameIndex]?.path ?? displayUrl;
   const imageTransform = `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotate(${rotation}deg) scaleX(${flip ? -1 : 1})`;
   const handleWheel = (event: React.WheelEvent) => {
     event.preventDefault();
@@ -218,7 +275,7 @@ export function Viewer() {
     <div className={`viewer-canvas ${zoom > 1 ? "pannable" : ""}`} onWheel={handleWheel} onPointerDown={startPan} onPointerMove={updatePan} onPointerUp={stopPan} onPointerCancel={stopPan}>
       <div className="viewer-image-center">
         {previewUrl && readyImagePath !== active.path && <img className="viewer-preview-image" src={previewUrl} alt="" draggable={false} style={{ transform: imageTransform }}/>} 
-        <img key={active.id} ref={imageRef} className={`viewer-original-image ${readyImagePath === active.path ? "ready" : ""}`} data-image-path={active.path} src={originalUrl(active.path)} alt={active.filename} draggable={false} decoding="async" loading="eager" onLoad={event => {
+        <img key={active.id} ref={imageRef} className={`viewer-original-image ${readyImagePath === active.path ? "ready" : ""}`} data-image-path={active.path} src={displayedImageUrl} alt={active.filename} draggable={false} decoding="async" loading="eager" onLoad={event => {
           const element = event.currentTarget;
           void element.decode().catch(() => undefined).then(() => {
             if (element.dataset.imagePath === useAppStore.getState().active?.path) setReadyImagePath(element.dataset.imagePath ?? null);
@@ -229,7 +286,8 @@ export function Viewer() {
       {immersive && s.images.length > 1 && (s.settings.loopNavigation || index > 0) && <button className="immersive-edge previous" aria-label="이전 사진" onClick={() => move(-1)}><ArrowLeft/></button>}
       {immersive && s.images.length > 1 && (s.settings.loopNavigation || index < s.images.length - 1) && <button className="immersive-edge next" aria-label="다음 사진" onClick={() => move(1)}><ArrowRight/></button>}
     </div>
-    {!immersive && <div className="viewer-controls"><button className="viewer-mode-button" title="사진만 보기 (F11)" onClick={() => void enterImmersive()}><Fullscreen/><span>사진만 보기</span></button><IconButton label="화면 맞춤" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Maximize/></IconButton><IconButton label="축소" onClick={() => setZoom(z => Math.max(.05, z / 1.2))}><Minus/></IconButton><button className="zoom-label" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button><IconButton label="확대" onClick={() => setZoom(z => Math.min(32, z * 1.2))}><Plus/></IconButton><span/><IconButton label="회전" onClick={() => setRotation(v => v + 90)}><RotateCw/></IconButton><IconButton label="좌우 반전" onClick={() => setFlip(v => !v)}><FlipHorizontal2/></IconButton></div>}
+    {animation && <div className={`animation-controls ${immersive ? "immersive" : ""}`}><span className="animation-format">{animation.format}</span><button title="첫 프레임" onClick={() => seekFrame(0)}><SkipBack/></button><button title="이전 프레임" onClick={() => seekFrame(frameIndex - 1)}><ChevronLeft/></button><button className="animation-play" title={playing ? "일시정지 (Space)" : "재생 (Space)"} onClick={togglePlayback}>{playing ? <Pause/> : <Play/>}</button><button title="다음 프레임" onClick={() => seekFrame(frameIndex + 1)}><ChevronRight/></button><button title="마지막 프레임" onClick={() => seekFrame(animation.frames.length - 1)}><SkipForward/></button><input className="frame-slider" aria-label="프레임 탐색" type="range" min="0" max={animation.frames.length - 1} value={pendingFrame ?? frameIndex} onPointerDown={() => setPlaying(false)} onChange={event => { setPlaying(false); setPendingFrame(Number(event.target.value)); }} onPointerUp={() => pendingFrame !== null && seekFrame(pendingFrame)} onKeyUp={() => pendingFrame !== null && seekFrame(pendingFrame)}/><label className="frame-number"><input aria-label="프레임 번호" type="number" min="1" max={animation.frames.length} value={frameInput} onChange={event => setFrameInput(event.target.value)} onBlur={() => seekFrame(Number(frameInput || 1) - 1)} onKeyDown={event => { if (event.key === "Enter") { seekFrame(Number(frameInput || 1) - 1); event.currentTarget.blur(); } }}/><span>/ {animation.frames.length} 프레임</span></label></div>}
+    {!immersive && <div className="viewer-controls"><button className="viewer-mode-button" title="사진만 보기 (F11)" onClick={() => void enterImmersive()}><Fullscreen/><span>사진만 보기</span></button><IconButton label="화면 맞춤" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Maximize/></IconButton><IconButton label="축소" onClick={() => stepZoom(-1)}><Minus/></IconButton><button className="zoom-label" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button><IconButton label="확대" onClick={() => stepZoom(1)}><Plus/></IconButton><span/><IconButton label="회전" onClick={() => setRotation(v => v + 90)}><RotateCw/></IconButton><IconButton label="좌우 반전" onClick={() => setFlip(v => !v)}><FlipHorizontal2/></IconButton></div>}
     {immersive && (immersiveControlVisible || infoVisible) && <button className={`immersive-info-toggle ${infoVisible ? "active" : ""} ${topBarVisible ? "below-titlebar" : ""}`} aria-label="사진 정보" title="사진 정보" onClick={() => { const next = !infoVisible; setInfoVisible(next); s.updateSettings({ showImmersiveInfo: next }); }}><Info/></button>}
     {immersive && infoVisible && <div className={`immersive-info-panel ${topBarVisible ? "below-titlebar" : ""}`}><strong>{active.filename}</strong><span>{index + 1} / {s.images.length}</span><span>파일 크기: {formatBytes(metadata?.size ?? active.size)}</span>{modifiedAt && <span>수정한 날짜: {new Date(modifiedAt).toLocaleString()}</span>}{metadata?.width && metadata.height && <span>이미지 정보: {metadata.width} × {metadata.height}{metadata.colorType ? ` · ${metadata.colorType}` : ""}</span>}</div>}
   </div>;
