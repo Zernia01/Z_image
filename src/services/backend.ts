@@ -2,16 +2,17 @@ import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AnimationInfo, DropResult, FileBatchResult, ImageEntry, ImageMetadata, MoveResult } from "../types/image";
+import { storedLanguage, translate } from "../i18n";
 
 export async function chooseFolder(): Promise<string | null> {
   if (!isTauri()) return null;
-  const selected = await open({ directory: true, multiple: false, title: "사진 폴더 선택" });
+  const selected = await open({ directory: true, multiple: false, title: translate(storedLanguage(), "dialog.chooseFolder") });
   return typeof selected === "string" ? selected : null;
 }
 
 export async function chooseDestinationFolder(): Promise<string | null> {
   if (!isTauri()) return null;
-  const selected = await open({ directory: true, multiple: false, title: "사진을 이동할 폴더 선택" });
+  const selected = await open({ directory: true, multiple: false, title: translate(storedLanguage(), "dialog.chooseDestination") });
   return typeof selected === "string" ? selected : null;
 }
 

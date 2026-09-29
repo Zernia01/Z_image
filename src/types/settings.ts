@@ -1,8 +1,9 @@
 export type Theme = "system" | "light" | "dark";
+export type Language = "ko" | "en" | "ja" | "zh-CN" | "zh-TW" | "ko-Hani";
 
 export interface AppSettings {
   theme: Theme;
-  language: "ko" | "en";
+  language: Language;
   thumbnailSize: number;
   showDetails: boolean;
   showGps: boolean;

@@ -12,9 +12,11 @@ import { SettingsModal } from "./components/SettingsModal";
 import { chooseDestinationFolder, chooseFolder, getLaunchPaths, moveFiles, resolveDroppedPaths, scanFolder } from "./services/backend";
 import { useAppStore } from "./stores/useAppStore";
 import { checkForUpdates } from "./services/updater";
+import { languageLocale, useI18n } from "./i18n";
 
 export default function App() {
   const s = useAppStore(); const [collapsed, setCollapsed] = useState(false); const [dragging, setDragging] = useState(false); const startupHandled = useRef(false);
+  const t = useI18n();
   const openFolder = async (requested?: string) => {
     const path = requested ?? await chooseFolder(); if (!path) return;
     const generation = useAppStore.getState().generation + 1; s.set({ folder:path, libraryView:"folder", loading:true, error:null, images:[], selected:new Set(), generation });
@@ -40,9 +42,9 @@ export default function App() {
     try {
       const result = await moveFiles(paths, destination);
       state.applyMoves(result.succeeded);
-      if (result.failed.length) window.alert(`일부 사진을 이동하지 못했습니다.\n${result.failed.join("\n")}`);
+      if (result.failed.length) window.alert(t("error.moveSome", { details: result.failed.join("\n") }));
       if (result.succeeded.length) await openFolder(destination);
-    } catch (error) { window.alert(`사진을 이동하지 못했습니다.\n${String(error)}`); }
+    } catch (error) { window.alert(t("error.move", { details: String(error) })); }
   };
   const openPaths = async (paths: string[]) => {
     const dropped = await resolveDroppedPaths(paths);
@@ -56,9 +58,9 @@ export default function App() {
     return true;
   };
   useEffect(() => {
-    const root = document.documentElement; root.dataset.theme = s.settings.theme;
+    const root = document.documentElement; root.dataset.theme = s.settings.theme; root.lang = languageLocale(s.settings.language);
     root.classList.toggle("no-motion", !s.settings.animations);
-  }, [s.settings.theme, s.settings.animations]);
+  }, [s.settings.theme, s.settings.animations, s.settings.language]);
   useEffect(() => {
     if (!s.settings.automaticUpdates || !isTauri()) return;
     const timer = window.setTimeout(() => { void checkForUpdates(false); }, 1800);
@@ -105,25 +107,26 @@ export default function App() {
         const paths = event.payload.paths;
         void (async () => {
           try {
-            if (!await openPaths(paths)) window.alert("지원하는 이미지 파일을 찾지 못했습니다.");
-          } catch (error) { window.alert(`가져온 항목을 열 수 없습니다.\n${String(error)}`); }
+            if (!await openPaths(paths)) window.alert(t("error.noImages"));
+          } catch (error) { window.alert(t("error.openDropped", { details: String(error) })); }
         })();
       }
     }).then(stop => { if (disposed) stop(); else unlisten = stop; });
     return () => { disposed = true; unlisten?.(); };
-  }, []);
+  }, [s.settings.language]);
   if (s.active) return <Viewer/>;
   return <div className="app-shell">
     <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(v=>!v)} onOpen={openFolder}/>
     <div className="workspace"><Toolbar onRefresh={() => s.folder && openFolder(s.folder)} onClose={() => s.showCollection("home")} onMove={moveSelected}/><div className="content-row"><main className="main-content">{s.libraryView === "home" ? <Home onOpen={() => openFolder()}/> : s.loading && !s.images.length ? <LoadingGallery/> : s.error ? <ErrorState message={s.error} onRetry={() => s.folder && openFolder(s.folder)}/> : <Gallery/>}</main><DetailsPanel/></div><StatusBar/></div>
-    {dragging && <div className="drop-overlay"><div><FolderOpen/><strong>여기에 놓아 바로 열기</strong><span>이미지 또는 폴더를 가져옵니다</span></div></div>}
+    {dragging && <div className="drop-overlay"><div><FolderOpen/><strong>{t("home.dropOpen")}</strong><span>{t("home.dropDescription")}</span></div></div>}
     {s.settingsOpen && <SettingsModal/>}
   </div>;
 }
 
 function Home({onOpen}:{onOpen:()=>void}) {
-  return <div className="home-screen"><div className="hero-glow"/><div className="home-icon"><ImageIcon/></div><h1>사진을, 더 선명하게.</h1><p>빠르고 조용한 사진 라이브러리.<br/>모든 이미지는 이 기기 안에서만 처리됩니다.</p><button className="primary-button" onClick={onOpen}><FolderOpen/>폴더 열기</button>{!isTauri() && <div className="browser-notice">브라우저 미리보기에서는 폴더 선택이 비활성화됩니다.</div>}<div className="feature-chips"><span><Zap/>대용량 폴더 최적화</span><span><ShieldCheck/>완전한 로컬 처리</span></div><div className="drop-zone">사진 또는 폴더를 여기에 놓으세요</div></div>;
+  const t = useI18n(); const description = t("home.description").split("\n");
+  return <div className="home-screen"><div className="hero-glow"/><div className="home-icon"><ImageIcon/></div><h1>{t("home.title")}</h1><p>{description[0]}<br/>{description[1]}</p><button className="primary-button" onClick={onOpen}><FolderOpen/>{t("sidebar.openFolder")}</button>{!isTauri() && <div className="browser-notice">{t("home.browserNotice")}</div>}<div className="feature-chips"><span><Zap/>{t("home.largeFolder")}</span><span><ShieldCheck/>{t("home.local")}</span></div><div className="drop-zone">{t("home.dropZone")}</div></div>;
 }
 function LoadingGallery() { return <div className="loading-grid">{Array.from({length:20},(_,i)=><div key={i}><div className="skeleton"/><span className="skeleton line"/></div>)}</div>; }
-function ErrorState({message,onRetry}:{message:string;onRetry:()=>void}) { return <div className="error-state"><h2>폴더를 열 수 없습니다</h2><p>{message}</p><button onClick={onRetry}>다시 시도</button></div>; }
-function StatusBar() { const s=useAppStore(); return <footer className="statusbar"><span>{s.folder ? `${s.images.length.toLocaleString()}개 사진` : "준비됨"}</span><span>{s.selected.size ? `${s.selected.size}개 선택됨` : s.folder ?? "zernia image"}</span><label>썸네일 <input type="range" min="96" max="300" value={s.settings.thumbnailSize} onChange={e=>s.updateSettings({thumbnailSize:+e.target.value})}/></label></footer>; }
+function ErrorState({message,onRetry}:{message:string;onRetry:()=>void}) { const t=useI18n(); return <div className="error-state"><h2>{t("home.openError")}</h2><p>{message}</p><button onClick={onRetry}>{t("home.retry")}</button></div>; }
+function StatusBar() { const s=useAppStore(); const t=useI18n(); return <footer className="statusbar"><span>{s.folder ? t("home.photoCount", { count: s.images.length.toLocaleString() }) : t("common.ready")}</span><span>{s.selected.size ? t("home.selectedCount", { count: s.selected.size }) : s.folder ?? "zernia image"}</span><label>{t("home.thumbnail")} <input type="range" min="96" max="300" value={s.settings.thumbnailSize} onChange={e=>s.updateSettings({thumbnailSize:+e.target.value})}/></label></footer>; }

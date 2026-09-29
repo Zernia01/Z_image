@@ -3,9 +3,11 @@ import { Thumbnail } from "./Thumbnail";
 import { useAppStore } from "../stores/useAppStore";
 import { useVirtualGrid } from "../hooks/useVirtualGrid";
 import type { ImageEntry } from "../types/image";
+import { useI18n } from "../i18n";
 
 export function Gallery() {
   const s = useAppStore();
+  const t = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const size = s.viewMode === "list" ? 56 : s.settings.thumbnailSize;
   const itemWidth = s.viewMode === "list" ? 1_000_000 : size + 28;
@@ -17,7 +19,7 @@ export function Gallery() {
     if (next.has(image.id)) next.delete(image.id); else next.add(image.id);
     s.set({ selected: next, metadata: null });
   };
-  if (!images.length) return <div className="empty-results"><span>검색 결과가 없습니다</span><small>다른 검색어를 입력해 보세요.</small></div>;
+  if (!images.length) return <div className="empty-results"><span>{t("gallery.empty")}</span><small>{t("gallery.tryAnother")}</small></div>;
   return <div className={`gallery-scroll ${s.viewMode}`} ref={ref} onWheel={e => {
     if (e.ctrlKey) { e.preventDefault(); s.updateSettings({ thumbnailSize: Math.max(96, Math.min(300, size - Math.sign(e.deltaY) * 16)) }); }
   }}>
