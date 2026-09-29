@@ -14,6 +14,8 @@ export interface AppSettings {
   rememberLastLocation: boolean;
   openImagesImmersive: boolean;
   showImmersiveInfo: boolean;
+  showAnimationControls: boolean;
+  tabTogglesDetails: boolean;
   loopNavigation: boolean;
   automaticUpdates: boolean;
 }
@@ -31,6 +33,8 @@ export const defaultSettings: AppSettings = {
   rememberLastLocation: true,
   openImagesImmersive: false,
   showImmersiveInfo: false,
+  showAnimationControls: true,
+  tabTogglesDetails: true,
   loopNavigation: false,
   automaticUpdates: true
 };
