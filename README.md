@@ -153,3 +153,168 @@ Zernia Image에서는 일부 기능을 사용자의 취향에 맞게 변경할 �
 Zernia Image는 현재 개발 중인 프로그램입니다.
 
 사용 중 문제가 발생하거나 정상적으로 동작하지 않는 기능이 있을 수 있으며, 이후 업데이트를 통해 수정 및 개선될 수 있습니다.
+
+# EN ver
+
+# Zernia Image
+
+> A fast and easy-to-use desktop image viewer
+
+**Version 0.1.5**
+
+Zernia Image is a desktop image viewer designed to make browsing and viewing various images simple and convenient.  
+It provides features such as zooming, image panning, favorites, recent history, image-only view, and quick image information.
+
+> This program was developed with the assistance of AI during the development process.
+
+---
+
+## AI Development Notice
+
+This program was developed with the assistance of **AI** during the development process.
+
+AI tools were used for code generation, structural design, UI composition, and the implementation of some features.
+
+Although AI was used during development, the actual behavior and features of the program are manually reviewed, tested, and modified throughout the development process.
+
+---
+
+## Key Features
+
+### Image Zoom In / Out
+
+While viewing an image, you can use:
+
+```text
+Ctrl + Mouse Wheel
+```
+
+to zoom in or out.
+
+- `Ctrl + Wheel Up` : Zoom in
+- `Ctrl + Wheel Down` : Zoom out
+
+---
+
+### Mouse Wheel Panning
+
+When an image is zoomed in, you can use the mouse wheel to move around the image.
+
+This is useful for navigating images that are larger than the viewing area.
+
+---
+
+### Favorites
+
+You can manage frequently used images or locations using Favorites.
+
+The Favorites section can be shown or hidden in Settings.
+
+```text
+Settings → Show Favorites ON / OFF
+```
+
+---
+
+### Recent History
+
+You can view recently opened images or locations.
+
+The Recent History feature can also be enabled or disabled in Settings.
+
+```text
+Settings → Recent History ON / OFF
+```
+
+If you prefer not to keep a history or need additional privacy, you can disable this feature.
+
+---
+
+### Images Only
+
+You can configure the current location to display image files only.
+
+This is useful when you want to hide unrelated files and quickly browse only image files.
+
+The **Automatically Show Images Only** option can be enabled or disabled in Settings.
+
+```text
+Settings → Automatically Show Images Only ON / OFF
+```
+
+When enabled, the program will automatically display only image files when a folder is opened.
+
+---
+
+### Quick Information
+
+You can quickly check basic information about the selected image.
+
+For example, the following information may be displayed:
+
+- File name
+- Image format
+- Image resolution
+- File size
+- Basic image information
+
+This feature is designed to show only the essential information you need while viewing an image.
+
+---
+
+## Controls
+
+| Control | Function |
+|---|---|
+| `Ctrl + Mouse Wheel Up` | Zoom in |
+| `Ctrl + Mouse Wheel Down` | Zoom out |
+| `Mouse Wheel` | Pan the image |
+| Images Only | Display image files only |
+| Quick Information | View information about the selected image |
+
+---
+
+## Settings
+
+Zernia Image allows you to customize several features according to your preferences.
+
+The main settings currently available are:
+
+- Show Favorites ON / OFF
+- Recent History ON / OFF
+- Automatically Show Images Only ON / OFF
+
+Additional settings may be added in future updates.
+
+---
+
+## Languages
+
+Zernia Image supports the following languages:
+
+- Korean
+- English (`en`)
+- Japanese (`日本語`)
+- Simplified Chinese (`中文简体`)
+- Traditional Chinese (`中文繁體`)
+- Mixed Korean and Hanja (`國漢文混用`)
+
+---
+
+## Version
+
+Current version:
+
+```text
+0.1.5
+```
+
+As this is an early development version, some features may be changed or added in future releases.
+
+---
+
+## Notice
+
+Zernia Image is currently under development.
+
+Some features may not work as expected or issues may occur during use. These issues may be fixed and improved in future updates.
