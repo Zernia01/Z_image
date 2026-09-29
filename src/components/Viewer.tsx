@@ -119,12 +119,29 @@ export function Viewer() {
   useEffect(() => {
     let live = true;
     setAnimation(null); setFrameIndex(0); setFrameInput("1"); setPlaying(false); setCompletedLoops(0); setPendingFrame(null);
-    loadAnimation(active.path).then(value => {
-      if (!live || !value || value.frames.length < 2) return;
-      setAnimation(value); setFrameIndex(0); setFrameInput("1"); setPlaying(true);
-    }).catch(error => console.error("애니메이션을 불러올 수 없습니다.", error));
+    const avif = active.extension.toLocaleLowerCase() === "avif";
+    void (async () => {
+      try {
+        const value = await loadAnimation(active.path);
+        if (!live) return;
+        if (value && value.frames.length >= 2) {
+          setAnimation(value); setFrameIndex(0); setFrameInput("1"); setPlaying(true);
+        } else if (avif) {
+          const url = await displayImageUrl(active.path);
+          if (live) setDisplayUrl(url);
+        }
+      } catch (error) {
+        console.error("애니메이션을 불러올 수 없습니다.", error);
+        if (avif && live) {
+          try {
+            const url = await displayImageUrl(active.path);
+            if (live) setDisplayUrl(url);
+          } catch (displayError) { console.error("표시용 이미지를 준비할 수 없습니다.", displayError); }
+        }
+      }
+    })();
     return () => { live = false; };
-  }, [active.path]);
+  }, [active.extension, active.path]);
   useEffect(() => {
     if (!animation || !playing) return;
     const delay = animation.frames[frameIndex]?.delayMs ?? 100;
@@ -156,9 +173,11 @@ export function Viewer() {
     setReadyImagePath(null);
     const previewSize = Math.min(512, Math.max(128, s.settings.thumbnailSize * 2));
     cachedThumbnailUrl(active.path, previewSize).then(url => { if (live) setPreviewUrl(url); }).catch(() => undefined);
-    displayImageUrl(active.path).then(url => { if (live) setDisplayUrl(url); }).catch(error => console.error("표시용 이미지를 준비할 수 없습니다.", error));
+    if (active.extension.toLocaleLowerCase() !== "avif") {
+      displayImageUrl(active.path).then(url => { if (live) setDisplayUrl(url); }).catch(error => console.error("표시용 이미지를 준비할 수 없습니다.", error));
+    }
     return () => { live = false; };
-  }, [active.path, s.settings.thumbnailSize]);
+  }, [active.extension, active.path, s.settings.thumbnailSize]);
   useEffect(() => {
     const configuredRadius = Math.max(1, Math.min(5, s.settings.preload));
     const aheadRadius = configuredRadius;

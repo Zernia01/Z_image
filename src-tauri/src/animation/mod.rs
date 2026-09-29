@@ -11,13 +11,20 @@ use image::{
 use std::{
     fs::{self, File},
     io::BufReader,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
 
 const MAX_FRAMES: usize = 10_000;
+const CACHE_SCHEMA_VERSION: u8 = 2;
 
 pub fn decode(path: &str) -> Result<Option<AnimationInfo>, String> {
+    catch_unwind(AssertUnwindSafe(|| decode_inner(path)))
+        .map_err(|_| "애니메이션 디코더가 예기치 않게 중단되었습니다.".to_string())?
+}
+
+fn decode_inner(path: &str) -> Result<Option<AnimationInfo>, String> {
     let source = Path::new(path);
     let format = image::ImageReader::open(source)
         .map_err(|error| error.to_string())?
@@ -90,27 +97,36 @@ pub fn decode(path: &str) -> Result<Option<AnimationInfo>, String> {
         }
         Some(ImageFormat::Avif) => {
             let bytes = fs::read(source).map_err(|error| error.to_string())?;
-            let animation = match zenavif::decode_animation_with(
-                &bytes,
-                &zenavif::DecoderConfig::new().prefer_8bit(true),
-                &zenavif::Unstoppable,
-            ) {
-                Ok(animation) => animation,
+            // 모든 프레임을 한 번에 메모리에 올리면 고해상도 AVIF에서 프로세스가
+            // 종료될 수 있다. 프레임 단위 디코더로 즉시 PNG 캐시에 흘려 보낸다.
+            let config = zenavif::DecoderConfig::new()
+                .threads(1)
+                .prefer_8bit(true)
+                .frame_size_limit(8192 * 8192);
+            let mut decoder = match zenavif::AnimationDecoder::new(&bytes, &config) {
+                Ok(decoder) => decoder,
                 Err(_) => {
                     cleanup_empty(&directory);
                     return Ok(None);
                 }
             };
-            if animation.frames.len() < 2 {
+            let frame_count = decoder.info().frame_count;
+            if frame_count < 2 {
                 cleanup_empty(&directory);
                 return Ok(None);
             }
-            let loops = (animation.info.loop_count != 0).then_some(animation.info.loop_count);
-            let mut frames = Vec::with_capacity(animation.frames.len());
-            for (index, frame) in animation.frames.into_iter().enumerate() {
-                if index >= MAX_FRAMES {
-                    return Err(format!("애니메이션 프레임이 {MAX_FRAMES}개를 초과합니다."));
-                }
+            if frame_count > MAX_FRAMES {
+                cleanup_empty(&directory);
+                return Err(format!("애니메이션 프레임이 {MAX_FRAMES}개를 초과합니다."));
+            }
+            let loop_count = decoder.info().loop_count;
+            let loops = (loop_count != 0).then_some(loop_count);
+            let mut frames = Vec::with_capacity(frame_count);
+            for index in 0..frame_count {
+                let frame = decoder
+                    .next_frame(&zenavif::Unstoppable)
+                    .map_err(|error| format!("AVIF {index}번 프레임 디코딩 실패: {error}"))?
+                    .ok_or_else(|| format!("AVIF {index}번 프레임이 없습니다."))?;
                 let frame_path = directory.join(format!("frame-{index:05}.png"));
                 avif::pixel_buffer_to_image(frame.pixels)?
                     .save_with_format(&frame_path, ImageFormat::Png)
@@ -194,7 +210,8 @@ fn animation_cache_dir(source: &Path) -> Result<PathBuf, String> {
         .unwrap_or(0);
     let key = blake3::hash(
         format!(
-            "{}:{}:{}",
+            "{}:{}:{}:{}",
+            CACHE_SCHEMA_VERSION,
             source.to_string_lossy(),
             metadata.len(),
             modified

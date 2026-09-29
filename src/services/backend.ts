@@ -52,7 +52,7 @@ export async function cacheStats(): Promise<{ bytes: number; files: number }> {
   return invoke("cache_stats");
 }
 
-export async function clearThumbnailCache(): Promise<void> {
+export async function clearAppCache(): Promise<void> {
   await invoke("clear_thumbnail_cache");
 }
 
