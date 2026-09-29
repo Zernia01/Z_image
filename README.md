@@ -2,7 +2,7 @@
 
 > 빠르고 간편한 데스크톱 이미지 뷰어
 
-**Version 0.1.6**
+**Version 0.1.7**
 
 Zernia Image는 다양한 이미지를 편리하게 탐색하고 확인하기 위한 데스크톱 이미지 뷰어입니다.  
 확대/축소, 이미지 이동, 즐겨찾기, 최근 기록, 사진만 보기, 간편 정보 확인 등의 기능을 제공합니다.
@@ -141,7 +141,7 @@ Zernia Image에서는 일부 기능을 사용자의 취향에 맞게 변경할 �
 현재 버전:
 
 ```text
-0.1.6
+0.1.7
 ```
 
 초기 개발 버전이므로 일부 기능이 변경되거나 추가될 수 있습니다.
@@ -160,7 +160,7 @@ Zernia Image는 현재 개발 중인 프로그램입니다.
 
 > A fast and easy-to-use desktop image viewer
 
-**Version 0.1.6**
+**Version 0.1.7**
 
 Zernia Image is a desktop image viewer designed to make browsing and viewing various images simple and convenient.  
 It provides features such as zooming, image panning, favorites, recent history, image-only view, and quick image information.
@@ -306,7 +306,7 @@ Zernia Image supports the following languages:
 Current version:
 
 ```text
-0.1.6
+0.1.7
 ```
 
 As this is an early development version, some features may be changed or added in future releases.
