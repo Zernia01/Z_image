@@ -79,13 +79,21 @@ export function Viewer() {
   };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
-    try { await getCurrentWindow().setDecorations(false); } catch (error) { console.error("창 제목 표시줄을 숨길 수 없습니다.", error); }
+    try {
+      const window = getCurrentWindow();
+      await window.setDecorations(false);
+      await window.setFullscreen(true);
+    } catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
   };
   const leaveImmersive = async () => {
     if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
     if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
     setImmersive(false); setImmersiveControlVisible(false); setInfoVisible(false); setTopBarVisible(false); setTopBarClosing(false);
-    try { await getCurrentWindow().setDecorations(true); } catch (error) { console.error("창 제목 표시줄을 복원할 수 없습니다.", error); }
+    try {
+      const window = getCurrentWindow();
+      await window.setFullscreen(false);
+      await window.setDecorations(true);
+    } catch (error) { console.error("창 화면을 복원할 수 없습니다.", error); }
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -108,13 +116,17 @@ export function Viewer() {
   });
   useEffect(() => {
     void getCurrentWindow().center().catch(error => console.error("뷰어 창을 화면 중앙으로 이동할 수 없습니다.", error));
-    if (s.settings.openImagesImmersive) void getCurrentWindow().setDecorations(false).catch(() => undefined);
+    if (s.settings.openImagesImmersive) {
+      const window = getCurrentWindow();
+      void window.setDecorations(false).then(() => window.setFullscreen(true)).catch(() => undefined);
+    }
     return () => {
       if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
       if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
       if (navigationWheelFrame.current !== undefined) cancelAnimationFrame(navigationWheelFrame.current);
       if (zoomWheelFrame.current !== undefined) cancelAnimationFrame(zoomWheelFrame.current);
-      void getCurrentWindow().setDecorations(true).catch(() => undefined);
+      const window = getCurrentWindow();
+      void window.setFullscreen(false).then(() => window.setDecorations(true)).catch(() => undefined);
     };
   }, []);
   useEffect(() => {
@@ -308,7 +320,7 @@ export function Viewer() {
       {immersive && s.images.length > 1 && (s.settings.loopNavigation || index > 0) && <button className="immersive-edge previous" aria-label={t("viewer.previous")} onClick={() => move(-1)}><ArrowLeft/></button>}
       {immersive && s.images.length > 1 && (s.settings.loopNavigation || index < s.images.length - 1) && <button className="immersive-edge next" aria-label={t("viewer.next")} onClick={() => move(1)}><ArrowRight/></button>}
     </div>
-    {animation && s.settings.showAnimationControls && <div className={`animation-controls ${immersive ? "immersive" : ""}`}><span className="animation-format">{animation.format}</span><button title={t("viewer.firstFrame")} onClick={() => seekFrame(0)}><SkipBack/></button><button title={t("viewer.previousFrame")} onClick={() => seekFrame(frameIndex - 1)}><ChevronLeft/></button><button className="animation-play" title={t(playing ? "viewer.pause" : "viewer.play")} onClick={togglePlayback}>{playing ? <Pause/> : <Play/>}</button><button title={t("viewer.nextFrame")} onClick={() => seekFrame(frameIndex + 1)}><ChevronRight/></button><button title={t("viewer.lastFrame")} onClick={() => seekFrame(animation.frames.length - 1)}><SkipForward/></button><input className="frame-slider" aria-label={t("viewer.frameSeek")} type="range" min="0" max={animation.frames.length - 1} value={pendingFrame ?? frameIndex} onPointerDown={() => setPlaying(false)} onChange={event => { setPlaying(false); setPendingFrame(Number(event.target.value)); }} onPointerUp={() => pendingFrame !== null && seekFrame(pendingFrame)} onKeyUp={() => pendingFrame !== null && seekFrame(pendingFrame)}/><label className="frame-number"><input aria-label={t("viewer.frameNumber")} type="number" min="1" max={animation.frames.length} value={frameInput} onChange={event => setFrameInput(event.target.value)} onBlur={() => seekFrame(Number(frameInput || 1) - 1)} onKeyDown={event => { if (event.key === "Enter") { seekFrame(Number(frameInput || 1) - 1); event.currentTarget.blur(); } }}/><span>/ {animation.frames.length} {t("viewer.frames")}</span></label></div>}
+    {animation && !immersive && s.settings.showAnimationControls && <div className="animation-controls"><span className="animation-format">{animation.format}</span><button title={t("viewer.firstFrame")} onClick={() => seekFrame(0)}><SkipBack/></button><button title={t("viewer.previousFrame")} onClick={() => seekFrame(frameIndex - 1)}><ChevronLeft/></button><button className="animation-play" title={t(playing ? "viewer.pause" : "viewer.play")} onClick={togglePlayback}>{playing ? <Pause/> : <Play/>}</button><button title={t("viewer.nextFrame")} onClick={() => seekFrame(frameIndex + 1)}><ChevronRight/></button><button title={t("viewer.lastFrame")} onClick={() => seekFrame(animation.frames.length - 1)}><SkipForward/></button><input className="frame-slider" aria-label={t("viewer.frameSeek")} type="range" min="0" max={animation.frames.length - 1} value={pendingFrame ?? frameIndex} onPointerDown={() => setPlaying(false)} onChange={event => { setPlaying(false); setPendingFrame(Number(event.target.value)); }} onPointerUp={() => pendingFrame !== null && seekFrame(pendingFrame)} onKeyUp={() => pendingFrame !== null && seekFrame(pendingFrame)}/><label className="frame-number"><input aria-label={t("viewer.frameNumber")} type="number" min="1" max={animation.frames.length} value={frameInput} onChange={event => setFrameInput(event.target.value)} onBlur={() => seekFrame(Number(frameInput || 1) - 1)} onKeyDown={event => { if (event.key === "Enter") { seekFrame(Number(frameInput || 1) - 1); event.currentTarget.blur(); } }}/><span>/ {animation.frames.length} {t("viewer.frames")}</span></label></div>}
     {!immersive && <div className="viewer-controls"><button className="viewer-mode-button" title={`${t("viewer.immersive")} (F11)`} onClick={() => void enterImmersive()}><Fullscreen/><span>{t("viewer.immersive")}</span></button><IconButton label={t("viewer.fit")} onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Maximize/></IconButton><IconButton label={t("viewer.zoomOut")} onClick={() => stepZoom(-1)}><Minus/></IconButton><button className="zoom-label" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button><IconButton label={t("viewer.zoomIn")} onClick={() => stepZoom(1)}><Plus/></IconButton><span/><IconButton label={t("viewer.rotate")} onClick={() => setRotation(v => v + 90)}><RotateCw/></IconButton><IconButton label={t("viewer.flip")} onClick={() => setFlip(v => !v)}><FlipHorizontal2/></IconButton></div>}
     {immersive && (immersiveControlVisible || infoVisible) && <button className={`immersive-info-toggle ${infoVisible ? "active" : ""} ${topBarVisible ? "below-titlebar" : ""}`} aria-label={t("viewer.info")} title={t("viewer.info")} onClick={() => { const next = !infoVisible; setInfoVisible(next); s.updateSettings({ showImmersiveInfo: next }); }}><Info/></button>}
     {immersive && infoVisible && <div className={`immersive-info-panel ${topBarVisible ? "below-titlebar" : ""}`}><strong>{active.filename}</strong><span>{index + 1} / {s.images.length}</span><span>{t("viewer.fileSize")}: {formatBytes(metadata?.size ?? active.size)}</span>{modifiedAt && <span>{t("viewer.modified")}: {new Date(modifiedAt).toLocaleString(languageLocale(s.settings.language))}</span>}{metadata?.width && metadata.height && <span>{t("viewer.imageInfo")}: {metadata.width} × {metadata.height}{metadata.colorType ? ` · ${metadata.colorType}` : ""}</span>}</div>}
