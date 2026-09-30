@@ -94,3 +94,11 @@ pub fn get_launch_paths() -> Vec<String> {
         .map(|path| path.to_string_lossy().into_owned())
         .collect()
 }
+
+#[tauri::command]
+pub fn set_native_fullscreen(
+    window: tauri::WebviewWindow,
+    enabled: bool,
+) -> Result<(), String> {
+    platform::set_native_fullscreen(&window, enabled)
+}

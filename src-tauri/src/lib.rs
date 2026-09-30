@@ -55,7 +55,8 @@ pub fn run() {
             commands::move_files_to_trash,
             commands::resolve_dropped_paths,
             commands::open_default_apps_settings,
-            commands::get_launch_paths
+            commands::get_launch_paths,
+            commands::set_native_fullscreen
         ])
         .run(tauri::generate_context!())
         .expect("failed to run zernia image");

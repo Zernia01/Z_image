@@ -64,6 +64,10 @@ export async function getLaunchPaths(): Promise<string[]> {
   return invoke<string[]>("get_launch_paths");
 }
 
+export async function setNativeFullscreen(enabled: boolean): Promise<void> {
+  await invoke("set_native_fullscreen", { enabled });
+}
+
 export async function moveFiles(paths: string[], destination: string): Promise<FileBatchResult<MoveResult>> {
   return invoke("move_files", { paths, destination });
 }

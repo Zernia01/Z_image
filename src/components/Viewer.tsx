@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, FlipHorizontal2, Fullscreen, Info, Maximize, Minimize2, Minus, Pause, Play, Plus, RotateCw, SkipBack, SkipForward, Square, X } from "lucide-react";
-import { cachedThumbnailUrl, displayImageUrl, loadAnimation, loadMetadata, originalUrl } from "../services/backend";
+import { cachedThumbnailUrl, displayImageUrl, loadAnimation, loadMetadata, originalUrl, setNativeFullscreen } from "../services/backend";
 import { useAppStore } from "../stores/useAppStore";
 import type { AnimationInfo, ImageMetadata } from "../types/image";
 import { IconButton } from "./IconButton";
@@ -79,23 +79,15 @@ export function Viewer() {
   };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
-    try {
-      const window = getCurrentWindow();
-      await window.setDecorations(false);
-      await window.setFullscreen(true);
-      await window.setAlwaysOnTop(true);
-    } catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
+    try { await setNativeFullscreen(true); }
+    catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
   };
   const leaveImmersive = async () => {
     if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
     if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
     setImmersive(false); setImmersiveControlVisible(false); setInfoVisible(false); setTopBarVisible(false); setTopBarClosing(false);
-    try {
-      const window = getCurrentWindow();
-      await window.setAlwaysOnTop(false);
-      await window.setFullscreen(false);
-      await window.setDecorations(true);
-    } catch (error) { console.error("창 화면을 복원할 수 없습니다.", error); }
+    try { await setNativeFullscreen(false); }
+    catch (error) { console.error("창 화면을 복원할 수 없습니다.", error); }
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -119,16 +111,14 @@ export function Viewer() {
   useEffect(() => {
     void getCurrentWindow().center().catch(error => console.error("뷰어 창을 화면 중앙으로 이동할 수 없습니다.", error));
     if (s.settings.openImagesImmersive) {
-      const window = getCurrentWindow();
-      void window.setDecorations(false).then(() => window.setFullscreen(true)).then(() => window.setAlwaysOnTop(true)).catch(() => undefined);
+      void setNativeFullscreen(true).catch(() => undefined);
     }
     return () => {
       if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
       if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
       if (navigationWheelFrame.current !== undefined) cancelAnimationFrame(navigationWheelFrame.current);
       if (zoomWheelFrame.current !== undefined) cancelAnimationFrame(zoomWheelFrame.current);
-      const window = getCurrentWindow();
-      void window.setAlwaysOnTop(false).then(() => window.setFullscreen(false)).then(() => window.setDecorations(true)).catch(() => undefined);
+      void setNativeFullscreen(false).catch(() => undefined);
     };
   }, []);
   useEffect(() => {
