@@ -83,6 +83,7 @@ export function Viewer() {
       const window = getCurrentWindow();
       await window.setDecorations(false);
       await window.setFullscreen(true);
+      await window.setAlwaysOnTop(true);
     } catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
   };
   const leaveImmersive = async () => {
@@ -91,6 +92,7 @@ export function Viewer() {
     setImmersive(false); setImmersiveControlVisible(false); setInfoVisible(false); setTopBarVisible(false); setTopBarClosing(false);
     try {
       const window = getCurrentWindow();
+      await window.setAlwaysOnTop(false);
       await window.setFullscreen(false);
       await window.setDecorations(true);
     } catch (error) { console.error("창 화면을 복원할 수 없습니다.", error); }
@@ -118,7 +120,7 @@ export function Viewer() {
     void getCurrentWindow().center().catch(error => console.error("뷰어 창을 화면 중앙으로 이동할 수 없습니다.", error));
     if (s.settings.openImagesImmersive) {
       const window = getCurrentWindow();
-      void window.setDecorations(false).then(() => window.setFullscreen(true)).catch(() => undefined);
+      void window.setDecorations(false).then(() => window.setFullscreen(true)).then(() => window.setAlwaysOnTop(true)).catch(() => undefined);
     }
     return () => {
       if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
@@ -126,7 +128,7 @@ export function Viewer() {
       if (navigationWheelFrame.current !== undefined) cancelAnimationFrame(navigationWheelFrame.current);
       if (zoomWheelFrame.current !== undefined) cancelAnimationFrame(zoomWheelFrame.current);
       const window = getCurrentWindow();
-      void window.setFullscreen(false).then(() => window.setDecorations(true)).catch(() => undefined);
+      void window.setAlwaysOnTop(false).then(() => window.setFullscreen(false)).then(() => window.setDecorations(true)).catch(() => undefined);
     };
   }, []);
   useEffect(() => {

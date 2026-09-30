@@ -1,6 +1,6 @@
 [package]
 name = "zernia-image"
-version = "0.1.8"
+version = "0.1.9"
 description = "A fast, private desktop image library"
 authors = ["zernia image contributors"]
 edition = "2021"
