@@ -92,7 +92,11 @@ export function Viewer() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
-      if (e.key === "Escape") { if (immersive) void leaveImmersive(); else s.set({ active: null }); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (s.settings.escapeClosesApp) { void getCurrentWindow().close(); return; }
+        if (immersive) void leaveImmersive(); else s.set({ active: null });
+      }
       if (e.key === "F11") { e.preventDefault(); if (immersive) void leaveImmersive(); else void enterImmersive(); }
       if (e.key === "Tab" && immersive && s.settings.tabTogglesDetails) { e.preventDefault(); const next = !infoVisible; setInfoVisible(next); s.updateSettings({ showImmersiveInfo: next }); }
       if (e.key === "ArrowLeft") { e.preventDefault(); animation ? seekFrame(frameIndex - 1) : move(-1); }
@@ -150,16 +154,25 @@ export function Viewer() {
   useEffect(() => {
     if (!animation || !playing) return;
     const delay = animation.frames[frameIndex]?.delayMs ?? 100;
+    const atLastFrame = frameIndex >= animation.frames.length - 1;
+    const nextLoops = atLastFrame ? completedLoops + 1 : completedLoops;
+    if (atLastFrame && animation.loopCount !== null && nextLoops >= animation.loopCount) {
+      setPlaying(false);
+      return;
+    }
+    const nextFrameIndex = atLastFrame ? 0 : frameIndex + 1;
+    const preload = new Image();
+    preload.src = animation.frames[nextFrameIndex].path;
+    const decoded = preload.decode().catch(() => undefined);
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      setFrameIndex(current => {
-        if (current < animation.frames.length - 1) return current + 1;
-        const nextLoops = completedLoops + 1;
-        if (animation.loopCount !== null && nextLoops >= animation.loopCount) { setPlaying(false); return current; }
-        setCompletedLoops(nextLoops);
-        return 0;
+      void decoded.then(() => {
+        if (cancelled) return;
+        if (atLastFrame) setCompletedLoops(nextLoops);
+        setFrameIndex(nextFrameIndex);
       });
     }, delay);
-    return () => window.clearTimeout(timer);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [animation, completedLoops, frameIndex, playing]);
   useEffect(() => { setFrameInput(String(frameIndex + 1)); }, [frameIndex]);
   useEffect(() => {

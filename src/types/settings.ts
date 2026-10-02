@@ -16,6 +16,7 @@ export interface AppSettings {
   showImmersiveInfo: boolean;
   showAnimationControls: boolean;
   tabTogglesDetails: boolean;
+  escapeClosesApp: boolean;
   loopNavigation: boolean;
   automaticUpdates: boolean;
 }
@@ -35,6 +36,7 @@ export const defaultSettings: AppSettings = {
   showImmersiveInfo: false,
   showAnimationControls: true,
   tabTogglesDetails: true,
+  escapeClosesApp: false,
   loopNavigation: false,
   automaticUpdates: true
 };

@@ -96,9 +96,6 @@ pub fn get_launch_paths() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn set_native_fullscreen(
-    window: tauri::WebviewWindow,
-    enabled: bool,
-) -> Result<(), String> {
+pub fn set_native_fullscreen(window: tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
     platform::set_native_fullscreen(&window, enabled)
 }

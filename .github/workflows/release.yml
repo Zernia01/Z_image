@@ -2,9 +2,6 @@ name: Release zernia image
 
 on:
   workflow_dispatch:
-  release:
-    types:
-      - published
   push:
     tags:
       - "v*"
@@ -38,7 +35,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.event_name == 'release' && github.event.release.tag_name || 'v__VERSION__' }}
+          tagName: "v__VERSION__"
           releaseName: "zernia image v__VERSION__"
           releaseBody: "zernia image 자동 업데이트 릴리스"
           releaseDraft: false

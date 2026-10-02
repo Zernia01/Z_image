@@ -12,10 +12,7 @@ pub fn open_default_apps_settings() -> Result<(), String> {
     }
 }
 
-pub fn set_native_fullscreen(
-    window: &tauri::WebviewWindow,
-    enabled: bool,
-) -> Result<(), String> {
+pub fn set_native_fullscreen(window: &tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         windows::fullscreen::set(window, enabled)
