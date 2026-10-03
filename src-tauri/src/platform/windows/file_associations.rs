@@ -125,6 +125,20 @@ pub fn register() -> Result<(), String> {
                     },
                 )
                 .map_err(|error| error.to_string())?;
+
+            // Tauri's Windows installer uses the bare extension (for example `png`) as
+            // the ProgID. Existing UserChoice entries keep pointing at that ProgID after
+            // an update, so also replace its generic executable icon when it belongs to us.
+            let installed_prog_key = create_key(&classes, extension)?;
+            let is_zernia_prog_id = installed_prog_key
+                .get_value::<String, _>("")
+                .map(|value| value == "ZerniaPhotoViewer.Image")
+                .unwrap_or(false);
+            if is_zernia_prog_id {
+                create_key(&installed_prog_key, "DefaultIcon")?
+                    .set_value("", &format!("{},0", icon_path.display()))
+                    .map_err(|error| error.to_string())?;
+            }
         }
     }
 
