@@ -35,6 +35,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            if let Err(error) = platform::register_file_associations() {
+                log::warn!("failed to register file associations: {error}");
+            }
             if let (Some(window), Some(icon)) =
                 (app.get_webview_window("main"), app.default_window_icon())
             {

@@ -12,6 +12,17 @@ pub fn open_default_apps_settings() -> Result<(), String> {
     }
 }
 
+pub fn register_file_associations() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::file_associations::register()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(())
+    }
+}
+
 pub fn set_native_fullscreen(window: &tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {

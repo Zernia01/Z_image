@@ -6723,7 +6723,7 @@ dependencies = [
 
 [[package]]
 name = "zernia-image"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "blake3",
  "directories",
@@ -6747,6 +6747,7 @@ dependencies = [
  "trash",
  "walkdir",
  "windows 0.61.3",
+ "winreg",
  "zenavif",
 ]
 
