@@ -28,6 +28,11 @@ const FILE_TYPES: &[FileType] = &[
         include_bytes!("../../../icons/file-types/avif.ico"),
     ),
     FileType::new(
+        "gif",
+        &["gif"],
+        include_bytes!("../../../icons/file-types/gif.ico"),
+    ),
+    FileType::new(
         "bmp",
         &["bmp", "dib"],
         include_bytes!("../../../icons/file-types/bmp.ico"),
