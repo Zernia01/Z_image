@@ -1,6 +1,8 @@
 import { useAppStore } from "./stores/useAppStore";
 import type { Language } from "./types/settings";
 
+const APP_VERSION = "0.2.6";
+
 const ko = {
   "common.settings": "설정", "common.close": "닫기", "common.image": "사진", "common.images": "사진", "common.ready": "준비됨",
   "sidebar.navigation": "기본 탐색", "sidebar.home": "홈", "sidebar.recent": "최근 사진", "sidebar.recentDisabled": "설정에서 최근 기록이 꺼져 있습니다", "sidebar.favorites": "즐겨찾기", "sidebar.openFolder": "폴더 열기", "sidebar.recentFolders": "최근 폴더", "sidebar.removeRecent": "최근 목록에서 삭제", "sidebar.removeRecentAria": "{path} 최근 기록 삭제", "sidebar.collapse": "사이드바 접기",
@@ -79,6 +81,7 @@ export const languageOptions: { value: Language; label: string }[] = [
 
 export function translate(language: Language, key: TranslationKey, variables?: Record<string, string | number>): string {
   let value = releaseOverrides[language]?.[key] ?? dictionaries[language]?.[key] ?? ko[key];
+  if (key === "settings.version") value = value.replace(/\d+\.\d+\.\d+/, APP_VERSION);
   if (variables) for (const [name, replacement] of Object.entries(variables)) value = value.replaceAll(`{${name}}`, String(replacement));
   return value;
 }

@@ -6723,7 +6723,7 @@ dependencies = [
 
 [[package]]
 name = "zernia-image"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "blake3",
  "directories",

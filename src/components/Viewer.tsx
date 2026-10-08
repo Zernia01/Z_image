@@ -43,6 +43,7 @@ export function Viewer() {
   const zoomWheelFrame = useRef<number>();
   const imageRef = useRef<HTMLImageElement>(null);
   const preloadCache = useRef(new Map<string, HTMLImageElement>());
+  const animationFrameCache = useRef(new Map<string, HTMLImageElement>());
   const panDrag = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const index = s.images.findIndex(x => x.id === active.id);
   const activeId = useRef(active.id);
@@ -75,7 +76,34 @@ export function Viewer() {
   const togglePlayback = () => {
     if (!animation) return;
     setCompletedLoops(0);
-    setPlaying(value => !value);
+    setPlaying(value => {
+      if (value) setFrameInput(String(frameIndex + 1));
+      return !value;
+    });
+  };
+  const prepareAnimationFrame = (url: string) => {
+    const cached = animationFrameCache.current.get(url);
+    if (cached) return cached.decode().catch(() => undefined);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = url;
+    animationFrameCache.current.set(url, image);
+    return image.decode().catch(() => undefined);
+  };
+  const prepareAnimationWindow = (value: AnimationInfo, from: number) => {
+    // 현재 프레임 주변만 디코딩 상태로 유지해 고해상도 움짤의 메모리 폭증을 막는다.
+    const keep = new Set<string>();
+    const count = value.frames.length;
+    const ahead = Math.min(count, 8);
+    for (let offset = -1; offset < ahead; offset++) {
+      const index = (from + offset + count) % count;
+      const url = value.frames[index].path;
+      keep.add(url);
+      void prepareAnimationFrame(url);
+    }
+    for (const url of animationFrameCache.current.keys()) {
+      if (!keep.has(url)) animationFrameCache.current.delete(url);
+    }
   };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
@@ -127,6 +155,7 @@ export function Viewer() {
   }, []);
   useEffect(() => {
     let live = true;
+    animationFrameCache.current.clear();
     setAnimation(null); setFrameIndex(0); setFrameInput("1"); setPlaying(false); setCompletedLoops(0); setPendingFrame(null);
     const avif = active.extension.toLocaleLowerCase() === "avif";
     void (async () => {
@@ -134,6 +163,7 @@ export function Viewer() {
         const value = await loadAnimation(active.path);
         if (!live) return;
         if (value && value.frames.length >= 2) {
+          prepareAnimationWindow(value, 0);
           setAnimation(value); setFrameIndex(0); setFrameInput("1"); setPlaying(true);
         } else if (avif) {
           const url = await displayImageUrl(active.path);
@@ -153,28 +183,57 @@ export function Viewer() {
   }, [active.extension, active.path]);
   useEffect(() => {
     if (!animation || !playing) return;
-    const delay = animation.frames[frameIndex]?.delayMs ?? 100;
-    const atLastFrame = frameIndex >= animation.frames.length - 1;
-    const nextLoops = atLastFrame ? completedLoops + 1 : completedLoops;
-    if (atLastFrame && animation.loopCount !== null && nextLoops >= animation.loopCount) {
-      setPlaying(false);
-      return;
-    }
-    const nextFrameIndex = atLastFrame ? 0 : frameIndex + 1;
-    const preload = new Image();
-    preload.src = animation.frames[nextFrameIndex].path;
-    const decoded = preload.decode().catch(() => undefined);
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void decoded.then(() => {
-        if (cancelled) return;
-        if (atLastFrame) setCompletedLoops(nextLoops);
-        setFrameIndex(nextFrameIndex);
-      });
-    }, delay);
+    let timer = 0;
+    let current = frameIndex;
+    let loops = completedLoops;
+    let deadline = performance.now() + (animation.frames[current]?.delayMs ?? 100);
+
+    const schedule = () => {
+      timer = window.setTimeout(tick, Math.max(0, deadline - performance.now()));
+    };
+    const tick = async () => {
+      if (cancelled) return;
+      let now = performance.now();
+      let next = current;
+      let nextLoops = loops;
+
+      // 렌더링이 잠깐 밀려도 모든 늦은 프레임을 차례로 보여 주며 더 느려지지
+      // 않도록, 실제 시간에 맞는 프레임까지 건너뛴다.
+      do {
+        const atLast = next >= animation.frames.length - 1;
+        if (atLast) {
+          nextLoops += 1;
+          if (animation.loopCount !== null && nextLoops >= animation.loopCount) {
+            setFrameIndex(animation.frames.length - 1);
+            setCompletedLoops(nextLoops);
+            setFrameInput(String(animation.frames.length));
+            setPlaying(false);
+            return;
+          }
+        }
+        next = atLast ? 0 : next + 1;
+        deadline += animation.frames[next]?.delayMs ?? 100;
+      } while (deadline <= now);
+
+      await prepareAnimationFrame(animation.frames[next].path);
+      if (cancelled) return;
+      current = next;
+      loops = nextLoops;
+      setCompletedLoops(nextLoops);
+      setFrameIndex(next);
+      prepareAnimationWindow(animation, next);
+      now = performance.now();
+      if (deadline < now) deadline = now + (animation.frames[current]?.delayMs ?? 100);
+      schedule();
+    };
+
+    prepareAnimationWindow(animation, current);
+    schedule();
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [animation, completedLoops, frameIndex, playing]);
-  useEffect(() => { setFrameInput(String(frameIndex + 1)); }, [frameIndex]);
+    // 재생 중 frameIndex 변경으로 타이머를 매 프레임 다시 만들지 않는다.
+  }, [animation, playing]);
+  useEffect(() => { if (!playing) setFrameInput(String(frameIndex + 1)); }, [frameIndex, playing]);
   useEffect(() => {
     if (!infoVisible) { setMetadata(null); return; }
     let live = true;
@@ -325,7 +384,7 @@ export function Viewer() {
       {immersive && s.images.length > 1 && (s.settings.loopNavigation || index > 0) && <button className="immersive-edge previous" aria-label={t("viewer.previous")} onClick={() => move(-1)}><ArrowLeft/></button>}
       {immersive && s.images.length > 1 && (s.settings.loopNavigation || index < s.images.length - 1) && <button className="immersive-edge next" aria-label={t("viewer.next")} onClick={() => move(1)}><ArrowRight/></button>}
     </div>
-    {animation && !immersive && s.settings.showAnimationControls && <div className="animation-controls"><span className="animation-format">{animation.format}</span><button title={t("viewer.firstFrame")} onClick={() => seekFrame(0)}><SkipBack/></button><button title={t("viewer.previousFrame")} onClick={() => seekFrame(frameIndex - 1)}><ChevronLeft/></button><button className="animation-play" title={t(playing ? "viewer.pause" : "viewer.play")} onClick={togglePlayback}>{playing ? <Pause/> : <Play/>}</button><button title={t("viewer.nextFrame")} onClick={() => seekFrame(frameIndex + 1)}><ChevronRight/></button><button title={t("viewer.lastFrame")} onClick={() => seekFrame(animation.frames.length - 1)}><SkipForward/></button><input className="frame-slider" aria-label={t("viewer.frameSeek")} type="range" min="0" max={animation.frames.length - 1} value={pendingFrame ?? frameIndex} onPointerDown={() => setPlaying(false)} onChange={event => { setPlaying(false); setPendingFrame(Number(event.target.value)); }} onPointerUp={() => pendingFrame !== null && seekFrame(pendingFrame)} onKeyUp={() => pendingFrame !== null && seekFrame(pendingFrame)}/><label className="frame-number"><input aria-label={t("viewer.frameNumber")} type="number" min="1" max={animation.frames.length} value={frameInput} onChange={event => setFrameInput(event.target.value)} onBlur={() => seekFrame(Number(frameInput || 1) - 1)} onKeyDown={event => { if (event.key === "Enter") { seekFrame(Number(frameInput || 1) - 1); event.currentTarget.blur(); } }}/><span>/ {animation.frames.length} {t("viewer.frames")}</span></label></div>}
+    {animation && !immersive && s.settings.showAnimationControls && <div className="animation-controls"><span className="animation-format">{animation.format}</span><button title={t("viewer.firstFrame")} onClick={() => seekFrame(0)}><SkipBack/></button><button title={t("viewer.previousFrame")} onClick={() => seekFrame(frameIndex - 1)}><ChevronLeft/></button><button className="animation-play" title={t(playing ? "viewer.pause" : "viewer.play")} onClick={togglePlayback}>{playing ? <Pause/> : <Play/>}</button><button title={t("viewer.nextFrame")} onClick={() => seekFrame(frameIndex + 1)}><ChevronRight/></button><button title={t("viewer.lastFrame")} onClick={() => seekFrame(animation.frames.length - 1)}><SkipForward/></button><input className="frame-slider" aria-label={t("viewer.frameSeek")} type="range" min="0" max={animation.frames.length - 1} value={pendingFrame ?? frameIndex} onPointerDown={() => { setPlaying(false); setFrameInput(String(frameIndex + 1)); }} onChange={event => { setPlaying(false); setPendingFrame(Number(event.target.value)); }} onPointerUp={() => pendingFrame !== null && seekFrame(pendingFrame)} onKeyUp={() => pendingFrame !== null && seekFrame(pendingFrame)}/><label className="frame-number"><input aria-label={t("viewer.frameNumber")} type="number" min="1" max={animation.frames.length} value={playing ? String(frameIndex + 1) : frameInput} onChange={event => { setPlaying(false); setFrameInput(event.target.value); }} onBlur={() => seekFrame(Number(frameInput || 1) - 1)} onKeyDown={event => { if (event.key === "Enter") { seekFrame(Number(frameInput || 1) - 1); event.currentTarget.blur(); } }}/><span>/ {animation.frames.length} {t("viewer.frames")}</span></label></div>}
     {!immersive && <div className="viewer-controls"><button className="viewer-mode-button" title={`${t("viewer.immersive")} (F11)`} onClick={() => void enterImmersive()}><Fullscreen/><span>{t("viewer.immersive")}</span></button><IconButton label={t("viewer.fit")} onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}><Maximize/></IconButton><IconButton label={t("viewer.zoomOut")} onClick={() => stepZoom(-1)}><Minus/></IconButton><button className="zoom-label" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button><IconButton label={t("viewer.zoomIn")} onClick={() => stepZoom(1)}><Plus/></IconButton><span/><IconButton label={t("viewer.rotate")} onClick={() => setRotation(v => v + 90)}><RotateCw/></IconButton><IconButton label={t("viewer.flip")} onClick={() => setFlip(v => !v)}><FlipHorizontal2/></IconButton></div>}
     {immersive && (immersiveControlVisible || infoVisible) && <button className={`immersive-info-toggle ${infoVisible ? "active" : ""} ${topBarVisible ? "below-titlebar" : ""}`} aria-label={t("viewer.info")} title={t("viewer.info")} onClick={() => { const next = !infoVisible; setInfoVisible(next); s.updateSettings({ showImmersiveInfo: next }); }}><Info/></button>}
     {immersive && infoVisible && <div className={`immersive-info-panel ${topBarVisible ? "below-titlebar" : ""}`}><strong>{active.filename}</strong><span>{index + 1} / {s.images.length}</span><span>{t("viewer.fileSize")}: {formatBytes(metadata?.size ?? active.size)}</span>{modifiedAt && <span>{t("viewer.modified")}: {new Date(modifiedAt).toLocaleString(languageLocale(s.settings.language))}</span>}{metadata?.width && metadata.height && <span>{t("viewer.imageInfo")}: {metadata.width} × {metadata.height}{metadata.colorType ? ` · ${metadata.colorType}` : ""}</span>}</div>}

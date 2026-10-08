@@ -4,20 +4,24 @@ use crate::{
 };
 use directories::ProjectDirs;
 use image::{
-    codecs::{gif::GifDecoder, png::PngDecoder, webp::WebPDecoder},
+    codecs::{
+        gif::GifDecoder,
+        png::{CompressionType, FilterType, PngDecoder, PngEncoder},
+        webp::WebPDecoder,
+    },
     metadata::LoopCount,
-    AnimationDecoder, DynamicImage, ImageFormat,
+    AnimationDecoder, ExtendedColorType, ImageEncoder, ImageFormat, RgbaImage,
 };
 use std::{
     fs::{self, File},
-    io::BufReader,
+    io::{BufReader, BufWriter},
     panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
 
 const MAX_FRAMES: usize = 10_000;
-const CACHE_SCHEMA_VERSION: u8 = 2;
+const CACHE_SCHEMA_VERSION: u8 = 3;
 
 pub fn decode(path: &str) -> Result<Option<AnimationInfo>, String> {
     catch_unwind(AssertUnwindSafe(|| decode_inner(path)))
@@ -100,7 +104,9 @@ fn decode_inner(path: &str) -> Result<Option<AnimationInfo>, String> {
             // 모든 프레임을 한 번에 메모리에 올리면 고해상도 AVIF에서 프로세스가
             // 종료될 수 있다. 프레임 단위 디코더로 즉시 PNG 캐시에 흘려 보낸다.
             let config = zenavif::DecoderConfig::new()
-                .threads(1)
+                // 0은 사용 가능한 CPU 코어를 자동으로 활용한다. AVIF 프레임을
+                // 한 코어로만 디코딩하던 기존 설정이 긴 대기의 주원인이었다.
+                .threads(0)
                 .prefer_8bit(true)
                 .frame_size_limit(8192 * 8192);
             let mut decoder = match zenavif::AnimationDecoder::new(&bytes, &config) {
@@ -128,8 +134,8 @@ fn decode_inner(path: &str) -> Result<Option<AnimationInfo>, String> {
                     .map_err(|error| format!("AVIF {index}번 프레임 디코딩 실패: {error}"))?
                     .ok_or_else(|| format!("AVIF {index}번 프레임이 없습니다."))?;
                 let frame_path = directory.join(format!("frame-{index:05}.png"));
-                avif::pixel_buffer_to_image(frame.pixels)?
-                    .save_with_format(&frame_path, ImageFormat::Png)
+                let image = avif::pixel_buffer_to_image(frame.pixels)?.to_rgba8();
+                save_frame_fast(&frame_path, &image)
                     .map_err(|error| format!("AVIF 프레임 캐시 저장 실패: {error}"))?;
                 frames.push(AnimationFrameInfo {
                     path: frame_path.to_string_lossy().into_owned(),
@@ -178,8 +184,7 @@ fn write_frames<'a, D: AnimationDecoder<'a>>(
             (u64::from(numerator) / u64::from(denominator)).clamp(10, 60_000)
         };
         let frame_path = directory.join(format!("frame-{index:05}.png"));
-        DynamicImage::ImageRgba8(frame.into_buffer())
-            .save_with_format(&frame_path, ImageFormat::Png)
+        save_frame_fast(&frame_path, &frame.into_buffer())
             .map_err(|error| format!("프레임 캐시 저장 실패: {error}"))?;
         frames.push(AnimationFrameInfo {
             path: frame_path.to_string_lossy().into_owned(),
@@ -191,6 +196,19 @@ fn write_frames<'a, D: AnimationDecoder<'a>>(
         loop_count: loops,
         frames,
     })
+}
+
+/// 애니메이션 캐시는 배포 파일이 아니라 재생용 임시 데이터다. 압축률보다
+/// 생성 속도가 중요하므로 필터 탐색을 생략한 빠른 PNG로 기록한다.
+fn save_frame_fast(path: &Path, image: &RgbaImage) -> Result<(), image::ImageError> {
+    let writer = BufWriter::new(File::create(path)?);
+    PngEncoder::new_with_quality(writer, CompressionType::Fast, FilterType::NoFilter)
+        .write_image(
+            image.as_raw(),
+            image.width(),
+            image.height(),
+            ExtendedColorType::Rgba8,
+        )
 }
 
 fn loop_count(value: LoopCount) -> Option<u32> {
