@@ -1,7 +1,7 @@
 import { useAppStore } from "./stores/useAppStore";
 import type { Language } from "./types/settings";
 
-const APP_VERSION = "0.2.6";
+const APP_VERSION = "0.2.7";
 
 const ko = {
   "common.settings": "설정", "common.close": "닫기", "common.image": "사진", "common.images": "사진", "common.ready": "준비됨",

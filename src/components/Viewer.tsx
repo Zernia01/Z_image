@@ -42,6 +42,7 @@ export function Viewer() {
   const zoomWheelDelta = useRef(0);
   const zoomWheelFrame = useRef<number>();
   const imageRef = useRef<HTMLImageElement>(null);
+  const lastReadyImageUrl = useRef<string | null>(null);
   const preloadCache = useRef(new Map<string, HTMLImageElement>());
   const animationFrameCache = useRef(new Map<string, HTMLImageElement>());
   const panDrag = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
@@ -373,10 +374,16 @@ export function Viewer() {
     <div className={`viewer-canvas ${zoom > 1 ? "pannable" : ""}`} onWheel={handleWheel} onPointerDown={startPan} onPointerMove={updatePan} onPointerUp={stopPan} onPointerCancel={stopPan}>
       <div className="viewer-image-center">
         {previewUrl && readyImagePath !== active.path && <img className="viewer-preview-image" src={previewUrl} alt="" draggable={false} style={{ transform: imageTransform }}/>} 
+        {lastReadyImageUrl.current && readyImagePath !== active.path &&
+          <img className="viewer-transition-image" src={lastReadyImageUrl.current} alt="" draggable={false} style={{ transform: imageTransform }}/>
+        }
         <img key={active.id} ref={imageRef} className={`viewer-original-image ${readyImagePath === active.path ? "ready" : ""}`} data-image-path={active.path} src={displayedImageUrl} alt={active.filename} draggable={false} decoding="async" loading="eager" onLoad={event => {
           const element = event.currentTarget;
           void element.decode().catch(() => undefined).then(() => {
-            if (element.dataset.imagePath === useAppStore.getState().active?.path) setReadyImagePath(element.dataset.imagePath ?? null);
+            if (element.dataset.imagePath === useAppStore.getState().active?.path) {
+              lastReadyImageUrl.current = element.currentSrc || element.src;
+              setReadyImagePath(element.dataset.imagePath ?? null);
+            }
           });
         }} style={{ transform: imageTransform }}/>
       </div>
