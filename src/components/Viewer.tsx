@@ -45,6 +45,7 @@ export function Viewer() {
   const lastReadyImageUrl = useRef<string | null>(null);
   const preloadCache = useRef(new Map<string, HTMLImageElement>());
   const animationFrameCache = useRef(new Map<string, HTMLImageElement>());
+  const fullscreenSyncTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const panDrag = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
   const index = s.images.findIndex(x => x.id === active.id);
   const activeId = useRef(active.id);
@@ -108,13 +109,7 @@ export function Viewer() {
   };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
-    try {
-      await setNativeFullscreen(true);
-      // Windows가 fullscreen 메시지를 처리한 다음 실제 모니터와 WebView의
-      // 물리 높이를 다시 맞춰 작업 표시줄 자리의 검은 띠를 없앤다.
-      await new Promise(resolve => setTimeout(resolve, 100));
-      await syncNativeFullscreen();
-    }
+    try { await setNativeFullscreen(true); }
     catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
   };
   const leaveImmersive = async () => {
@@ -150,11 +145,7 @@ export function Viewer() {
   useEffect(() => {
     void getCurrentWindow().center().catch(error => console.error("뷰어 창을 화면 중앙으로 이동할 수 없습니다.", error));
     if (s.settings.openImagesImmersive) {
-      void (async () => {
-        await setNativeFullscreen(true);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await syncNativeFullscreen();
-      })().catch(() => undefined);
+      void setNativeFullscreen(true).catch(() => undefined);
     }
     return () => {
       if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
@@ -164,6 +155,30 @@ export function Viewer() {
       void setNativeFullscreen(false).catch(() => undefined);
     };
   }, []);
+  useEffect(() => {
+    for (const timer of fullscreenSyncTimers.current) clearTimeout(timer);
+    fullscreenSyncTimers.current = [];
+    if (!immersive) return;
+
+    // Tauri, DWM, 자동 숨김 작업 표시줄이 서로 다른 시점에 창 크기를
+    // 갱신할 수 있으므로 전환이 안정될 때까지 모니터/WebView 경계를 반복 보정한다.
+    const sync = () => void syncNativeFullscreen().catch(error => console.error("전체 화면 크기를 맞출 수 없습니다.", error));
+    for (const delay of [80, 250, 600, 1200, 2400]) {
+      fullscreenSyncTimers.current.push(setTimeout(sync, delay));
+    }
+    let resizeFrame: number | undefined;
+    const handleResize = () => {
+      if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(sync);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
+      for (const timer of fullscreenSyncTimers.current) clearTimeout(timer);
+      fullscreenSyncTimers.current = [];
+    };
+  }, [immersive]);
   useEffect(() => {
     let live = true;
     animationFrameCache.current.clear();

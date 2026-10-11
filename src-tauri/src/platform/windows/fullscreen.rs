@@ -7,8 +7,8 @@ use windows::Win32::{
         DWMWCP_DONOTROUND,
     },
     UI::WindowsAndMessaging::{
-        GetClientRect, SetWindowPos, HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-        SWP_SHOWWINDOW,
+        GetClientRect, GetWindowRect, SetWindowPos, HWND_TOPMOST, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_SHOWWINDOW,
     },
 };
 
@@ -64,18 +64,26 @@ pub fn sync_bounds(window: &WebviewWindow) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let bounds = monitor_info.rcMonitor;
-    unsafe {
-        SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            bounds.left,
-            bounds.top,
-            bounds.right - bounds.left,
-            bounds.bottom - bounds.top,
-            SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-        )
+    let mut current = RECT::default();
+    unsafe { GetWindowRect(hwnd, &mut current) }.map_err(|e| e.to_string())?;
+    if current.left != bounds.left
+        || current.top != bounds.top
+        || current.right != bounds.right
+        || current.bottom != bounds.bottom
+    {
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                Some(HWND_TOPMOST),
+                bounds.left,
+                bounds.top,
+                bounds.right - bounds.left,
+                bounds.bottom - bounds.top,
+                SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            )
+        }
+        .map_err(|e| e.to_string())?;
     }
-    .map_err(|e| e.to_string())?;
 
     let mut client = RECT::default();
     unsafe { GetClientRect(hwnd, &mut client) }.map_err(|e| e.to_string())?;
