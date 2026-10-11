@@ -68,10 +68,6 @@ export async function setNativeFullscreen(enabled: boolean): Promise<void> {
   await invoke("set_native_fullscreen", { enabled });
 }
 
-export async function syncNativeFullscreen(): Promise<void> {
-  await invoke("sync_native_fullscreen");
-}
-
 export async function moveFiles(paths: string[], destination: string): Promise<FileBatchResult<MoveResult>> {
   return invoke("move_files", { paths, destination });
 }
