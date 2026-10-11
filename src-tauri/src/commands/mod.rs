@@ -99,3 +99,8 @@ pub fn get_launch_paths() -> Vec<String> {
 pub fn set_native_fullscreen(window: tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
     platform::set_native_fullscreen(&window, enabled)
 }
+
+#[tauri::command]
+pub fn sync_native_fullscreen(window: tauri::WebviewWindow) -> Result<(), String> {
+    platform::sync_native_fullscreen(&window)
+}

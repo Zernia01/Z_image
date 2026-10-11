@@ -33,3 +33,14 @@ pub fn set_native_fullscreen(window: &tauri::WebviewWindow, enabled: bool) -> Re
         window.set_fullscreen(enabled).map_err(|e| e.to_string())
     }
 }
+
+pub fn sync_native_fullscreen(window: &tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::fullscreen::sync_bounds(window)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(())
+    }
+}

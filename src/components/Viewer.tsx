@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, FlipHorizontal2, Fullscreen, Info, Maximize, Minimize2, Minus, Pause, Play, Plus, RotateCw, SkipBack, SkipForward, Square, X } from "lucide-react";
-import { cachedThumbnailUrl, displayImageUrl, loadAnimation, loadMetadata, originalUrl, setNativeFullscreen } from "../services/backend";
+import { cachedThumbnailUrl, displayImageUrl, loadAnimation, loadMetadata, originalUrl, setNativeFullscreen, syncNativeFullscreen } from "../services/backend";
 import { useAppStore } from "../stores/useAppStore";
 import type { AnimationInfo, ImageMetadata } from "../types/image";
 import { IconButton } from "./IconButton";
@@ -108,7 +108,13 @@ export function Viewer() {
   };
   const enterImmersive = async () => {
     setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
-    try { await setNativeFullscreen(true); }
+    try {
+      await setNativeFullscreen(true);
+      // Windows가 fullscreen 메시지를 처리한 다음 실제 모니터와 WebView의
+      // 물리 높이를 다시 맞춰 작업 표시줄 자리의 검은 띠를 없앤다.
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await syncNativeFullscreen();
+    }
     catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
   };
   const leaveImmersive = async () => {
@@ -144,7 +150,11 @@ export function Viewer() {
   useEffect(() => {
     void getCurrentWindow().center().catch(error => console.error("뷰어 창을 화면 중앙으로 이동할 수 없습니다.", error));
     if (s.settings.openImagesImmersive) {
-      void setNativeFullscreen(true).catch(() => undefined);
+      void (async () => {
+        await setNativeFullscreen(true);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await syncNativeFullscreen();
+      })().catch(() => undefined);
     }
     return () => {
       if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
