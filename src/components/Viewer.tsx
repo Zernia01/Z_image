@@ -23,7 +23,6 @@ export function Viewer() {
   const [immersiveControlVisible, setImmersiveControlVisible] = useState(false);
   const [infoVisible, setInfoVisible] = useState(() => s.settings.showImmersiveInfo);
   const [topBarVisible, setTopBarVisible] = useState(false);
-  const [topBarClosing, setTopBarClosing] = useState(false);
   const [metadata, setMetadata] = useState<ImageMetadata | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [displayUrl, setDisplayUrl] = useState(() => originalUrl(active.path));
@@ -35,7 +34,6 @@ export function Viewer() {
   const [pendingFrame, setPendingFrame] = useState<number | null>(null);
   const [frameInput, setFrameInput] = useState("1");
   const hideControlTimer = useRef<ReturnType<typeof setTimeout>>();
-  const hideTopBarTimer = useRef<ReturnType<typeof setTimeout>>();
   const navigationWheelDelta = useRef(0);
   const navigationWheelFrame = useRef<number>();
   const wheelDirection = useRef(0);
@@ -107,14 +105,13 @@ export function Viewer() {
     }
   };
   const enterImmersive = async () => {
-    setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false); setTopBarClosing(false);
+    setZoom(1); setPan({ x: 0, y: 0 }); setImmersive(true); setImmersiveControlVisible(false); setInfoVisible(s.settings.showImmersiveInfo); setTopBarVisible(false);
     try { await setNativeFullscreen(true); }
     catch (error) { console.error("전체 화면으로 전환할 수 없습니다.", error); }
   };
   const leaveImmersive = async () => {
     if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
-    if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
-    setImmersive(false); setImmersiveControlVisible(false); setInfoVisible(false); setTopBarVisible(false); setTopBarClosing(false);
+    setImmersive(false); setImmersiveControlVisible(false); setInfoVisible(false); setTopBarVisible(false);
     try { await setNativeFullscreen(false); }
     catch (error) { console.error("창 화면을 복원할 수 없습니다.", error); }
   };
@@ -148,7 +145,6 @@ export function Viewer() {
     }
     return () => {
       if (hideControlTimer.current) clearTimeout(hideControlTimer.current);
-      if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
       if (navigationWheelFrame.current !== undefined) cancelAnimationFrame(navigationWheelFrame.current);
       if (zoomWheelFrame.current !== undefined) cancelAnimationFrame(zoomWheelFrame.current);
       void setNativeFullscreen(false).catch(() => undefined);
@@ -348,14 +344,10 @@ export function Viewer() {
     event.currentTarget.classList.remove("panning");
   };
   const showTopBar = () => {
-    if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
-    setTopBarClosing(false);
     setTopBarVisible(true);
   };
   const hideTopBar = () => {
-    if (hideTopBarTimer.current) clearTimeout(hideTopBarTimer.current);
-    setTopBarClosing(true);
-    hideTopBarTimer.current = setTimeout(() => { setTopBarVisible(false); setTopBarClosing(false); }, 120);
+    setTopBarVisible(false);
   };
   const handleViewerMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     revealImmersiveControl();
@@ -363,10 +355,10 @@ export function Viewer() {
     const imageTop = imageRef.current?.getBoundingClientRect().top ?? 0;
     const blackAreaBottom = Math.max(imageTop, 72);
     if (event.clientY <= blackAreaBottom) showTopBar();
-    else if (topBarVisible && !topBarClosing) hideTopBar();
+    else if (topBarVisible) hideTopBar();
   };
-  return <div className={`viewer ${immersive ? "immersive" : ""} ${immersiveControlVisible || infoVisible || topBarVisible ? "controls-visible" : ""}`} onMouseMove={handleViewerMouseMove} onMouseLeave={() => { if (immersive) setImmersiveControlVisible(false); if (topBarVisible && !topBarClosing) hideTopBar(); }}>
-    {immersive && topBarVisible && <div className={`immersive-titlebar ${topBarClosing ? "closing" : ""}`} data-tauri-drag-region onMouseEnter={showTopBar} onDoubleClick={() => void getCurrentWindow().toggleMaximize()}>
+  return <div className={`viewer ${immersive ? "immersive" : ""} ${immersiveControlVisible || infoVisible || topBarVisible ? "controls-visible" : ""}`} onMouseMove={handleViewerMouseMove} onMouseLeave={() => { if (immersive) setImmersiveControlVisible(false); if (topBarVisible) hideTopBar(); }}>
+    {immersive && topBarVisible && <div className="immersive-titlebar" data-tauri-drag-region onMouseEnter={showTopBar} onDoubleClick={() => void getCurrentWindow().toggleMaximize()}>
       <div className="immersive-title" data-tauri-drag-region><span className="immersive-title-icon">ZI</span><span data-tauri-drag-region>{active.filename} · {index + 1}/{s.images.length}</span></div>
       <div className="immersive-title-actions"><button title={t("viewer.restore")} onClick={event => { event.stopPropagation(); void leaveImmersive(); }}><Minimize2/><span>{t("viewer.restore")}</span></button><button title={t("viewer.minimize")} aria-label={t("viewer.minimize")} onClick={event => { event.stopPropagation(); void getCurrentWindow().minimize(); }}><Minus/></button><button title={t("viewer.maximize")} aria-label={t("viewer.maximize")} onClick={event => { event.stopPropagation(); void getCurrentWindow().toggleMaximize(); }}><Square/></button><button className="close" title={t("viewer.exit")} aria-label={t("viewer.exit")} onClick={event => { event.stopPropagation(); void getCurrentWindow().close(); }}><X/></button></div>
     </div>}
